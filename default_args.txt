@@ -1,0 +1,14 @@
+-W=40000 
+-t=2019.25,2020.0
+-g=200,2000,0.25
+-b=/Volumes/ice2/ben/ATL14_test/IS2/z03xlooser_dz3xlooser_dt10xlooser
+--ATL11_index=/Volumes/ice2//ben/scf/GL_11/U05/GeoIndex.h5
+--dzdt_lags=1
+--E_d3zdx2dt=0.00003 
+--E_d2z0dx2=0.006
+--E_d2zdt2=50000 
+--mask_file=/Volumes/ice2/ben/ATL14_test/GimpIceMask_100m_edited.tif
+--reference_epoch=3
+--Hemisphere=1
+--N_subset=8
+--max_iterations=6
