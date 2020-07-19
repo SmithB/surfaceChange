@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+
+default_file=$1
+
+base=$(grep "b=" $default_file | sed s/-b=//)
+
+echo $base
+
+for j in `ls $base/*/E*.h5`; do
+    echo "source activate ATL14; python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py 0 0 @$default_file -s 4 2 -c $j"
+done
