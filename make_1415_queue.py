@@ -8,11 +8,11 @@ Created on Thu Jun  6 21:00:02 2019
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PointDatabase.mapData import mapData
+import pointCollection as pc
 import scipy.ndimage as snd
 import sys
 import os
-
+import re
 step=sys.argv[1]
 if len(sys.argv) > 2:
     defaults_file=os.path.abspath(sys.argv[2])
@@ -23,26 +23,36 @@ if step not in ['centers', 'edges','corners']:
     sys.exit()
 
 xy_jako=(-160000, -2280000)
-#out_dir='/Volumes/ice2/ben/ATL14_test/Jako_d2zdt2=5000'
-#out_dir='/Volumes/ice2/ben/ATL14_test/Jako_d2zdt2=5000_d3z=0.00001_d2zdt2=1500_RACMO'
 
 XR=[-440000., -120000.]; YR= [-1840000., -1560000.]
 
-Wxy=80000
+defaults_re=re.compile('(.*)\s*=\s*(.*)')
+defaults={}
+with open(defaults_file,'r') as fh:
+   for line in fh:
+       m=defaults_re.search(line)
+       if m is not None:
+           defaults[m.group(1)]=m.group(2)
+#print( defaults)
+#sys.exit()
+
+Wxy=float(defaults['-W'])
 Hxy=Wxy/2
-mask_G=mapData().from_geotif('/Volumes/ice1/ben/GimpMasks_v1.1/GimpIceMask_1km.tif')
+
+
+mask_G=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
 mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([20, 20], dtype='bool'))
 
-with open(defaults_file,'r') as fid:
-    for line in fid:
-        if line[0:3]=='-b=':
-            out_dir=line.replace('-b=','').rstrip()
+try:
+    out_dir=defaults['-b']
+except keyError:
+    out_dir=defaults['--base_dir']
+
 if not os.path.isdir(out_dir):
     os.mkdir(out_dir)
 step_dir=out_dir+'/'+step
 if not os.path.isdir(step_dir):
     os.mkdir(step_dir)
-
 
 if step=='centers':
     delta_x=[0]
@@ -89,5 +99,5 @@ for xy0 in zip(xg, yg):
             #if np.sqrt((xy1[0]-320000.)**2 + (xy1[1]- -2520000.)**2) > 2.e5:
             #    continue
             #plt.plot(xy1[0], xy1[1],symbol)
-            print('python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py %d %d --%s @%s' % (xy1[0], xy1[1], step, defaults_file))
-#plt.show()
+            print('source activate ATL14; python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py %d %d --%s @%s' % (xy1[0], xy1[1], step, defaults_file))
+
