@@ -15,6 +15,8 @@ import h5py
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
 
+os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+
 def get_SRS_proj4(hemisphere):
     if hemisphere==1:
         return '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
@@ -81,16 +83,16 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     W={'x':Wxy, 'y':Wxy,'t':np.diff(t_span)}
     ctr={'x':xy0[0], 'y':xy0[1], 't':np.mean(t_span)}
 
-    if calc_error_file is None:
-        if reread_dirs is None:
-            data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4)
-        else:
-            data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
-    else:
+    # figure out where to get the data
+    if calc_error_file is not None:
         data=pc.data().from_h5(calc_error_file, group='data')
         max_iterations=0
         compute_E=True
         N_subset=None
+    elif reread_dirs is not None:
+        data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
+    else:
+        data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4)
         
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
@@ -205,8 +207,9 @@ def main(argv):
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
-    parser.add_argument('--error_res_scale','-s', type=float, default=2, help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
+    parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[2, 4], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
     args=parser.parse_args()
+
 
     args.grid_spacing = [np.float(temp) for temp in args.grid_spacing.split(',')]
     args.dzdt_lags = [np.int(temp) for temp in args.dzdt_lags.split(',')]
@@ -237,14 +240,15 @@ def main(argv):
         # get xy0 from the filename
         re_match=re.compile('E(.*)_N(.*).h5').search(args.calc_error_file)
         args.xy0=[float(re_match.group(ii))*1000 for ii in [1, 2]]
-
-    if args.calc_errors_for_xy is not None:
+        args.out_name=args.calc_error_file
+        
+    if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
 
     if args.error_res_scale is not None:
-        if args.calc_error_file is None:
-            print("if error_res_scale is specified, either --calc_errors_for_xy  or --calc_error_file must be present")
-            sys.exit(1)
+        if args.calc_error_file is not None:
+            for ii, key in enumerate(['z0','dz']):
+                spacing[key] *= args.error_res_scale[ii]
 
     if not os.path.isdir(args.base_directory):
         os.mkdir(args.base_directory)
