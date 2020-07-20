@@ -1,0 +1,13 @@
+-W=80000 
+-t=2019.25,2020.5
+-g=100,2000,0.25
+-b=/home/besmith4/nobackup/ATL14_test/base
+--ATL11_index=/home/besmith4/shared/ATL11_processing/Arctic_003_cycle_03_07/U07/index//GeoIndex.h5
+--dzdt_lags=1,4
+--E_d3zdx2dt=0.00003 
+--E_d2z0dx2=0.006
+--E_d2zdt2=50000 
+--mask_file=/home/besmith4/nobackup/masks/Arctic/GimpIceMask_100m_edited.tif
+--reference_epoch=3
+--Hemisphere=1
+--max_iterations=6

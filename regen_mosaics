@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+
+source activate ATL14
+
+base=$1
+
+rm $base/z0.h5
+rm $base/dz.h5
+
+python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz.h5 --in_group dz/ -F count dz 
+
+python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/z0.h5 --in_group z0/ -F  z0
+
+
