@@ -73,6 +73,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             W_edit=None, \
             out_name=None, replace=False, DOPLOT=False, \
             compute_E=False, mask_file=None, \
+            avg_scales=None,\
+            error_res_scale=None,\
             calc_error_file=None):
 
     SRS_proj4=get_SRS_proj4(hemisphere)
@@ -104,13 +106,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
-                     mask_file=mask_file, mask_scale={0:10, 1:1})
-
-    #S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
-    #                 reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
-    #                 bias_params=['day','sensor'], repeat_res=repeat_res, max_iterations=max_iterations,
-    #                 srs_proj4=SRS_proj4, VERBOSE=True, Edit_only=Edit_only, data_slope_sensors=DEM_sensors,
-    #                 mask_file=mask_file, mask_scale={0:10, 1:1})
+                     mask_file=mask_file, mask_scale={0:10, 1:1}, errror_res_scale=error_res_scale,
+                     avg_scales=avg_scales)
     return S
 
 def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
@@ -124,55 +121,44 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
         h5f.create_group('/meta/timing')
         for key in S['timing']:
             h5f['/meta/timing/'].attrs[key]=S['timing'][key]
-            
-        h5f.create_group('/dz')
-        dz_mask=np.ones_like(S['grids']['dz'].mask, dtype=np.float64)
-        dz_mask[S['grids']['dz'].mask==0]=np.NaN
-        for ii, name in enumerate(['y','x','t']):
-            h5f.create_dataset('/dz/'+name, data=S['grids']['dz'].ctrs[ii])
-        sz=list(dz_mask.shape) + [1]
-        h5f.create_dataset('/dz/dz', data=S['m']['dz'].dz*np.tile(dz_mask.reshape(sz), [1, 1, S['m']['dz'].shape[2]]))
-        h5f.create_dataset('/dz/count', data=S['m']['dz'].count)
-        
-        h5f.create_group('/z0')
-        h5f['z0'].attrs['time']=S['grids']['dz'].ctrs[2][reference_epoch]
-        for ii, name in enumerate(['y','x']):
-            h5f.create_dataset('/z0/'+name, data=S['grids']['z0'].ctrs[ii])
-        z0_mask=np.ones_like(S['grids']['z0'].mask, dtype=np.float64)
-        z0_mask[S['grids']['z0'].mask==0]=np.NaN
-        h5f.create_dataset('/z0/z0', data=S['m']['z0'].z0*z0_mask)
-        
-        h5f.create_group('/dz/center_average')
-        h5f.create_dataset('/dz/center_average/dz', data=S['m']['dz_bar'])
-        for lag in dzdt_lags:
-            this_name='dzdt_bar_lag%d' % lag
-            h5f.create_dataset('/dz/center_average/'+this_name, data=S['m'][this_name])
         h5f.create_group('/RMS')
         for key in S['RMS']:
-            h5f.create_dataset('/RMS/'+key, data=S['RMS'][key])
+           h5f.create_dataset('/RMS/'+key, data=S['RMS'][key])
         h5f.create_group('E_RMS')
         for key in S['E_RMS']:
             h5f.create_dataset('E_RMS/'+key, data=S['E_RMS'][key])
         for key in S['m']['bias']:
             h5f.create_dataset('/bias/'+key, data=S['m']['bias'][key])
+    for key , ds in S['m'].items():
+        if isinstance(ds, pc.grid.data):
+            ds.to_h5(filename, group=key)
     return
 
-def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None):
-    
+def interp_ds(ds, scale):
+    for field in ds.fields:
+        xi=np.arange(ds.x[0], ds.x[-1], (ds.x[1]-ds.x[0])/scale)
+        yi=np.arange(ds.y[0], ds.y[-1], (ds.y[1]-ds.y[0])/scale)
+        z0=getattr(ds, field)
+        if len(ds.shape)==2:
+            zi=pc.grid.data().from_dict({'x':ds.x, 'y':ds.y, 'z':z0}).interp(xi, yi, gridded=True)
+            return pc.grid.data().from_dict({'x':xi, 'y':yi, field:zi})
+        else:
+            zi=np.zeros([xi.size, yi.size, ds.time.size])
+            for epoch in range(ds.time.size):
+                temp=pc.grid.data().from_dict({'x':ds.x, 'y':ds.y, 'z':np.squeeze(z0[:,:,epoch])})
+                zi[:,:,epoch] = temp.interp(xi, yi, gridded=True)
+            return pc.grid.data().from_dict({'x':xi, 'y':yi, 'time':ds.time, field:zi})
+
+def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None, grid_datasets=None):
+
+    for key, ds in S['E'].items():
+        if isinstance(ds, pc.grid.data):
+            print(key)
+            ds.to_h5(filename, group=key.replace('sigma_',''))
+
     with h5py.File(filename,'r+') as h5f:
-        h5f.create_group('/dz/sigma/')
-        for ii, name in enumerate(['y','x','t']):
-            h5f.create_dataset('/dz/sigma/'+name, data=S['grids']['dz'].ctrs[ii])
-        h5f.create_dataset('dz/sigma/dz', data=S['E']['dz'].dz)
-        for lag in dzdt_lags:
-            field='dzdt_lag%d' % lag
-            h5f.create_dataset('/dz/sigma/'+field, data=S['E'][field])
-        h5f.create_group('/z0/sigma')
-        for ii, name in enumerate(['y','x']):
-            h5f.create_dataset('/z0/sigma/'+name, data=S['grids']['z0'].ctrs[ii])
-        h5f.create_dataset('/z0/sigma/z0', data=S['E']['z0'].z0)
-        for key in S['E']['bias']:
-            h5f.create_dataset('/bias/sigma/'+key, data=S['E']['bias'][key])
+        for key in S['E']['sigma_bias']:
+            h5f.create_dataset('/bias/sigma/'+key, data=S['E']['sigma_bias'][key])
        
     return
 
@@ -200,6 +186,7 @@ def main(argv):
     parser.add_argument('--E_d3zdx2dt', type=float, default=0.0003)
     parser.add_argument('--data_gap_scale', type=float,  default=2500)
     parser.add_argument('--dzdt_lags', type=str, default='1,4', help='lags for which to calculate dz/dt, comma-separated list, no spaces')
+    parser.add_argument('--avg_scales', type=str, default='10000,40000', help='scales at which to report average errors, comma-separated list, no spaces')
     parser.add_argument('--N_subset', type=int, default=None, help="number of pieces into which to divide the domain for (cheap) editing iterations.")
     parser.add_argument('--max_iterations', type=int, default=6, help="maximum number of iterations used to edit the data.")
     parser.add_argument('--map_dir','-m', type=str)
@@ -207,13 +194,14 @@ def main(argv):
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
-    parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[2, 4], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
+    parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
     args=parser.parse_args()
 
 
     args.grid_spacing = [np.float(temp) for temp in args.grid_spacing.split(',')]
     args.dzdt_lags = [np.int(temp) for temp in args.dzdt_lags.split(',')]
     args.time_span = [np.float(temp) for temp in args.time_span.split(',')]
+    args.avg_scales = [np.int(temp) for temp in args.avg_scales.split(',')]
 
     spacing={'z0':args.grid_spacing[0], 'dz':args.grid_spacing[1], 'dt':args.grid_spacing[2]}
     E_RMS={'d2z0_dx2':args.E_d2z0dx2, 'd3z_dx2dt':args.E_d3zdx2dt, 'd2z_dxdt':args.E_d3zdx2dt*args.data_gap_scale,  'd2z_dt2':args.E_d2zdt2}
@@ -265,18 +253,23 @@ def main(argv):
            mask_file=args.mask_file, \
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
-           W_edit=W_edit,
-           calc_error_file=args.calc_error_file)
-    
+           W_edit=W_edit,\
+           calc_error_file=args.calc_error_file, \
+           error_res_scale=args.error_res_scale, \
+           avg_scales=args.avg_scales)
+
     if args.calc_error_file is None:
         # if this isn't an error-calculation run, save the gridded fit data to the output file
         save_fit_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
     else:
         # If this is an error-calculation run, save the errors to the output file
+        S['E']['sigma_z0']=interp_ds(S['E']['sigma_z0'], args.error_res_scale[0])
+        for field in ['sigma_dz', f'sigma_dzdt_lag1', 'sigma_dzdt_lag4']:
+            S['E'][field] = interp_ds( S['E'][field], args.error_res_scale[1] )
         save_errors_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
     print(f"done with {args.out_name}")
 if __name__=='__main__':
     main(sys.argv)
 
-#-160000 -1800000 --centers @/home/ben/git_repos/surfaceChange/default_args_z03xlooser_dt10xlooser.txt
+#-160000 -1800000 --centers @/home/ben/git_repos/surfaceChange/default_args/test.txt
 #-160000 -1800000 --centers @/home/ben/git_repos/surfaceChange/default_args_z03xlooser_dt10xlooser_errors.txt -c /Volumes/ice2/ben/ATL14_test/IS2//U07/z03xlooser_dt10xlooser_40km/centers/E-160_N-1800.h5
