@@ -68,6 +68,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
             dzdt_lags=[1, 4],\
             hemisphere=1, reference_epoch=None, reread_dirs=None, \
+            data_file=None, \
             max_iterations=5, \
             N_subset=8,  \
             W_edit=None, \
@@ -86,7 +87,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     ctr={'x':xy0[0], 'y':xy0[1], 't':np.mean(t_span)}
 
     # figure out where to get the data
-    if calc_error_file is not None:
+    if data_file is not None:
+        data=pc.data().from_h5(data_file, group='/')
+    elif calc_error_file is not None:
         data=pc.data().from_h5(calc_error_file, group='data')
         max_iterations=0
         compute_E=True
@@ -192,6 +195,7 @@ def main(argv):
     parser.add_argument('--map_dir','-m', type=str)
     parser.add_argument('--mask_file', type=str)
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
+    parser.add_argument('--data_file', type=str, help='read data from this file alone')
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
     parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
@@ -246,7 +250,8 @@ def main(argv):
     S=ATL11_to_ATL15(args.xy0, ATL11_index=args.ATL11_index,
            Wxy=args.Width, E_RMS=E_RMS, t_span=args.time_span, spacing=spacing, \
            hemisphere=args.Hemisphere, reread_dirs=reread_dirs, \
-           out_name=args.out_name, 
+           data_file=args.data_file, \
+           out_name=args.out_name,
            DOPLOT=False, \
            dzdt_lags=args.dzdt_lags, \
            N_subset=args.N_subset,\
