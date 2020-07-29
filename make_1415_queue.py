@@ -24,7 +24,9 @@ if step not in ['centers', 'edges','corners']:
 
 xy_jako=(-160000, -2280000)
 
-XR=[-440000., -120000.]; YR= [-1840000., -1560000.]
+#XR=[-440000., -120000.]; YR= [-1840000., -1560000.]
+XR, YR= [None, None]
+
 
 defaults_re=re.compile('(.*)\s*=\s*(.*)')
 defaults={}
@@ -99,5 +101,7 @@ for xy0 in zip(xg, yg):
             #if np.sqrt((xy1[0]-320000.)**2 + (xy1[1]- -2520000.)**2) > 2.e5:
             #    continue
             #plt.plot(xy1[0], xy1[1],symbol)
-            print('source activate ATL14; python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py %d %d --%s @%s' % (xy1[0], xy1[1], step, defaults_file))
+            cmd='python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py %d %d --%s @%s ' % (xy1[0], xy1[1], step, defaults_file)
+            print('source activate ATL14; '+cmd +';'+cmd+' --calc_error_for_xy')
+            
 
