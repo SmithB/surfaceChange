@@ -139,8 +139,9 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
 
 def interp_ds(ds, scale):
     for field in ds.fields:
-        xi=np.arange(ds.x[0], ds.x[-1], (ds.x[1]-ds.x[0])/scale)
-        yi=np.arange(ds.y[0], ds.y[-1], (ds.y[1]-ds.y[0])/scale)
+        delta_xy=[(ds.x[1]-ds.x[0])/scale, (ds.y[1]-ds.y[0])/scale]
+        xi=np.arange(ds.x[0], ds.x[-1]+delta_xy[0], delta_xy[0])
+        yi=np.arange(ds.y[0], ds.y[-1]+delta_xy[1], delta_xy[1])
         z0=getattr(ds, field)
         if len(ds.shape)==2:
             zi=pc.grid.data().from_dict({'x':ds.x, 'y':ds.y, 'z':z0}).interp(xi, yi, gridded=True)
