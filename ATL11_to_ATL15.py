@@ -3,7 +3,11 @@
 """
 Created on Fri Nov 15 17:15:08 2019
 
-@author: ben
+@author: Ben Smith
+
+
+
+
  """
 import numpy as np
 from LSsurf.smooth_xytb_fit import smooth_xytb_fit
@@ -14,6 +18,7 @@ import sys
 import h5py
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
+from pyTMD import compute_tide_corrections
 
 os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
 
@@ -26,7 +31,8 @@ def get_SRS_proj4(hemisphere):
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
     field_dict_11={'corrected_h':['latitude','longitude','delta_time',\
                         'h_corr','h_corr_sigma','h_corr_sigma_systematic','quality_summary'],\
-                        '__calc_internal__':['rgt'],
+                        '__calc_internal__' : ['rgt'],
+                        'cycle_stats' : {'tide_ocean','dac'},
                         'ref_surf':['e_slope','n_slope', 'x_atc']}
     D11_list=pc.geoIndex().from_file(index_file).query_xy_box(xy0[0]+\
                         np.array([-Wxy/2, Wxy/2]), xy0[1]+np.array([-Wxy/2, Wxy/2]), fields=field_dict_11)
@@ -55,12 +61,31 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'cycle':D11.cycle_number,
            'n_cycles': n_cycles,
            'fit_quality': D11.quality_summary,
+           'tide_ocean': D11.tide_ocean,
+           'dac': D11.dac,
+           'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018})]
 
     D=pc.data().from_list(D_list).ravel_fields()
     D.index(D.fit_quality != 6)
-    #bad=(D.rgt==643) & (D.cycle==4)
-    #D.index(bad==0)
+    return D
+
+def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
+    #read in the tide mask (for Antarctica) and apply dac and tide to ice-shelf elements
+    # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
+    tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])     
+    is_els=tide_mask.interp(D.x, D.y) > 0.5
+    print(f"\t\t{np.mean(is_els)*100} shelf data")
+    if np.any(is_els.ravel()):
+        D.tide_ocean = compute_tide_corrections(\
+                D.x, D.y, D.delta_time,                                                           
+                DIRECTORY=tide_directory, MODEL='CATS2008',                                            
+                EPOCH=(2018,1,1,0,0,0), TYPE='drift', TIME='utc', EPSG=3031)    
+    D.tide_ocean[is_els==0] = 0
+    D.dac[is_els==0] = 0
+    D.tide_ocean[~np.isfinite(D.tide_ocean)] = 0
+    D.dac[~np.isfinite(D.dac)] = 0
+    D.z -= (D.tide_ocean + D.dac)
     return D
 
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
@@ -73,7 +98,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             N_subset=8,  \
             W_edit=None, \
             out_name=None, replace=False, DOPLOT=False, \
-            compute_E=False, mask_file=None, \
+            compute_E=False, \
+            mask_file=None, \
+            tide_mask_file=None,\
+            tide_directory=None,\
             avg_scales=None,\
             error_res_scale=None,\
             calc_error_file=None):
@@ -98,6 +126,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
         data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4)
+    
+    # apply the tides if a directory has been provided
+    if tide_mask_file is not None:
+        apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
         
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
@@ -109,7 +141,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
-                     mask_file=mask_file, mask_scale={0:10, 1:1}, errror_res_scale=error_res_scale,
+                     mask_file=mask_file, mask_scale={0:10, 1:1}, 
+                     error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
     return S
 
@@ -195,6 +228,8 @@ def main(argv):
     parser.add_argument('--max_iterations', type=int, default=6, help="maximum number of iterations used to edit the data.")
     parser.add_argument('--map_dir','-m', type=str)
     parser.add_argument('--mask_file', type=str)
+    parser.add_argument('--tide_mask_file', type=str)
+    parser.add_argument('--tide_directory', type=str)
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--data_file', type=str, help='read data from this file alone')
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
@@ -257,6 +292,8 @@ def main(argv):
            dzdt_lags=args.dzdt_lags, \
            N_subset=args.N_subset,\
            mask_file=args.mask_file, \
+           tide_mask_file=args.tide_mask_file, \
+           tide_directory=args.tide_directory, \
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
            W_edit=W_edit,\
