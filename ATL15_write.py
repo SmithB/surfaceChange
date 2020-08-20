@@ -159,7 +159,7 @@ def ATL15_write():
                      create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
             if field_attrs[field]['datatype'].startswith('int'):
                 dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-            elif field_attrs[field]['datatype'].startswith('Float'):
+            elif field_attrs[field]['datatype'].startswith('float'):
                 dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
 
         # four height change groups
@@ -226,7 +226,7 @@ def ATL15_write():
                          create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
                 if field_attrs[field]['datatype'].startswith('int'):
                     dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-                elif field_attrs[field]['datatype'].startswith('Float'):
+                elif field_attrs[field]['datatype'].startswith('float'):
                     dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             
             
