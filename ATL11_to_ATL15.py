@@ -3,11 +3,7 @@
 """
 Created on Fri Nov 15 17:15:08 2019
 
-@author: Ben Smith
-
-
-
-
+@author: ben
  """
 import numpy as np
 from LSsurf.smooth_xytb_fit import smooth_xytb_fit
@@ -21,6 +17,8 @@ from surfaceChange.reread_data_from_fits import reread_data_from_fits
 from pyTMD import compute_tide_corrections
 
 os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+os.environ["OPENBLAS_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+
 
 def get_SRS_proj4(hemisphere):
     if hemisphere==1:
@@ -30,7 +28,7 @@ def get_SRS_proj4(hemisphere):
 
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
     field_dict_11={'corrected_h':['latitude','longitude','delta_time',\
-                        'h_corr','h_corr_sigma','h_corr_sigma_systematic','quality_summary'],\
+                        'h_corr','h_corr_sigma','h_corr_sigma_systematic','quality_summary', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
                         'cycle_stats' : {'tide_ocean','dac'},
                         'ref_surf':['e_slope','n_slope', 'x_atc']}
@@ -58,6 +56,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'latitude':D11.latitude,
            'longitude':D11.longitude,
            'rgt':D11.rgt,
+           'ref_pt':D11.ref_pt,
            'cycle':D11.cycle_number,
            'n_cycles': n_cycles,
            'fit_quality': D11.quality_summary,
@@ -88,6 +87,29 @@ def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
     D.z -= (D.tide_ocean + D.dac)
     return D
 
+def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
+    # reduce the data density to a target value in small bins
+    ij_bin=np.round((D.x - (x0 - W_domain/2 + W_sub/2))/W_sub)+ \
+        1j*np.round((D.y - (y0 - W_domain/2 + W_sub/2))/W_sub)
+    rho_target = N_target / W_domain**2
+    ind_buffer=[]
+    for bin0 in np.unique(ij_bin):
+        ii = np.flatnonzero(ij_bin==bin0)
+        this_rho = len(ii) / (W_sub**2)
+        #print(f'bin0={bin0}, this_rho={this_rho}, ratio={this_rho/rho_target}')
+        if this_rho < rho_target:
+            # if there aren't too many points in this bin, continue
+            ind_buffer += [ii] 
+            continue
+        # make a global reference point number (equal to the number of ref pts in an orbit * rgt + ref_pt)
+        global_ref_pt=D.ref_pt[ii]+40130000/20*D.rgt[ii]
+        u_ref_pts = np.unique(global_ref_pt)
+        # select a subset of the global reference points (this skips the right number of points)
+        sel_ref_pts = u_ref_pts[np.arange(0, len(u_ref_pts), this_rho/rho_target).astype(int)]       
+        isub = np.in1d(global_ref_pt, sel_ref_pts)
+        ind_buffer.append(ii[isub])
+    D.index(np.concatenate(ind_buffer))
+    
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
@@ -97,7 +119,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             max_iterations=5, \
             N_subset=8,  \
             W_edit=None, \
-            out_name=None, replace=False, DOPLOT=False, \
+            out_name=None, \
             compute_E=False, \
             mask_file=None, \
             tide_mask_file=None,\
@@ -105,7 +127,33 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             avg_scales=None,\
             error_res_scale=None,\
             calc_error_file=None):
-
+    '''
+    Function to generate DEMs and height-change maps based on ATL11 surface height data.
+    
+    Inputs:
+        xy0: 2 elements specifying the center of the domain
+        Wxy: (float) Width of the domain
+        ATL11_index: (string) Index file (from pointCollection.geoIndex) for ATL11 data
+        E_RMS: (dict) dictionary specifying constraints on derivatives of the ice-sheet surface.  
+        t_span: (2-element list of floats) starting and ending times for the output grids (in years CE)
+        spacing: (dict) dictionary specifying the grid spacing for z0, dz, and dt
+        dzdt_lags: (list) lags over which elevation change rates and errors will be calculated
+        hemisphere: (int) the hemisphere in which the grids will be generated. 1 for northern hemisphere, -1 for southern
+        reference_epoch: (int) The time slice (counting from zero, in steps of spacing['dt']) corresponding to the DEM
+        reread_dirs: (string) directory containing output files from which data will be read (if None, data will be read from the index file)
+        data_file: (string) output file from which to reread data (alternative to reread_dirs)
+        max_iterations: (int) maximum number of iterations in three-sigma edit of the solution
+        N_subset: (int) If specified, the domain is subdivided into this number of divisions in x and y, and a three-sigma edit is calculated for each
+        W_edit: (float) Only data within this distance of the grid center can be editied in the iterative step
+        out_name: (string) Name of the output file
+        compute_E: (bool) If true, errors will be calculated
+        mask_file: (string) File specifying areas for which data should be used and strong constraints should be applied
+        tide_mask_file: (string)  File specifying the areas for which the tide model should be calculated
+        tide_directory: (string)  Directory containing the tide model data
+        avg_scales: (list of floats) scales over which the output grids will be averaged and errors will be calculated
+        error_res_scale: (float) If errors are calculated, the grid resolution will be coarsened by this factor
+        calc_error_file: (string) Output file for which errors will be calculated.
+    '''
     SRS_proj4=get_SRS_proj4(hemisphere)
  
     E_RMS0={'d2z0_dx2':200000./3000/3000, 'd3z_dx2dt':3000./3000/3000, 'd2z_dxdt':3000/3000, 'd2z_dt2':5000}
@@ -126,7 +174,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
         data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4)
-    
+        N0=data.size
+        decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
+        print(f'decimated {N0} to {data.size}')
+               
     # apply the tides if a directory has been provided
     if tide_mask_file is not None:
         apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
@@ -136,7 +187,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         # data that are far from the center of this file cannot be eliminated by
         # the three-sigma edit
         data.assign({'editable':  (np.abs(data.x-xy0[0])<=W_edit/2) & (np.abs(data.y-xy0[1])<=W_edit/2)})
-
+    
+    # call smooth_xytb_fit
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
@@ -288,7 +340,6 @@ def main(argv):
            hemisphere=args.Hemisphere, reread_dirs=reread_dirs, \
            data_file=args.data_file, \
            out_name=args.out_name,
-           DOPLOT=False, \
            dzdt_lags=args.dzdt_lags, \
            N_subset=args.N_subset,\
            mask_file=args.mask_file, \
