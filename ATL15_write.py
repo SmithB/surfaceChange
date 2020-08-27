@@ -29,27 +29,34 @@ import datetime as dt
 from ATL11.h5util import create_attribute
 
 
-def ATL15_write():
+def ATL15_write(args):
     
-#    def make_dataset(field,data,field_attrs,group_obj,file_obj,dimScale=False):
-#        dimensions = field_attrs[field]['dimensions'].split(',')
-#        data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-#        fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-#        dset = file_obj.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
-#        for ii,dim in enumerate(dimensions):
-#            dset.dims[ii].label = scale[dim.strip()]
-#            if fieldroot == 'year':
-#                dset.make_scale(field)
-#            else:    
-#                dset.dims[ii].attach_scale(fo[scale[dim.strip()]])
-#        for attr in attr_names:
-#             if 'dimensions' not in attr and 'datatype' not in attr:
-#                 create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-#        if field_attrs[field]['datatype'].startswith('int'):
-#            dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-#        elif field_attrs[field]['datatype'].startswith('float'):
-#            dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-#        print(file_obj)
+    def make_dataset(field,data,field_attrs,file_obj,group_obj,scale_dict,dimScale=False):
+        dimensions = field_attrs[field]['dimensions'].split(',')
+        data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
+        fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+        dset = group_obj.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
+        for ii,dim in enumerate(dimensions):
+            dset.dims[ii].label = scale[dim.strip()]
+            print(field, ii,dim)
+            print(file_obj)
+            print(scale[dim.strip()])
+            if dimScale:
+                dset.make_scale(field)
+            else:
+                if dim.startswith('Nt'):
+                    dset.dims[ii].attach_scale(file_obj[scale[dim.strip()]])
+                else:
+                    dset.dims[ii].attach_scale(group_obj[scale[dim.strip()]])
+
+        for attr in attr_names:
+             if 'dimensions' not in attr and 'datatype' not in attr:
+                 create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
+        if field_attrs[field]['datatype'].startswith('int'):
+            dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
+        elif field_attrs[field]['datatype'].startswith('float'):
+            dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+        return file_obj
 
     dz_dict ={'year':'t',               
               'year_lag1':'t',
@@ -99,34 +106,24 @@ def ATL15_write():
 
     # establish output file
     fileout = 'ATL15_yyyymmdd.h5'
-#    print('output file',fileout)
     if os.path.isfile(fileout):
         os.remove(fileout)
     with h5py.File(fileout.encode('ASCII'),'w') as fo:
-        # open input files with ROOT and height_change variables.
-#            if 'dz' not in FH:
-#                print('no dz group')
-#                FH.close()
-#                exit(-1)
-#        # height_change groups
-#        gh=f0.greate_
+        # open data attributes file
         with open('ATL15_output_attrs_sd.csv','r', encoding='utf-8-sig') as attrfile:
             reader=list(csv.DictReader(attrfile))
         group_names = set([row['group'] for row in reader])
     
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
-#        print('line 68',attr_names)
-#        print('group names',group_names)
         
         # work ROOT group first
         field_names = [row['field'] for row in reader if 'ROOT' in row['group']]
         # open input files for group height_change
         for jj in range(len(lags['fileh'])):
-            lags['fileh'][jj] = h5py.File('dz'+lags['lag'][jj]+'.h5','r')
+            lags['fileh'][jj] = h5py.File(args.directory+'/dz'+lags['lag'][jj]+'.h5','r')
             #establish variables that are dimension scales first
             for fieldroot in ['year','delta_time']:
                 field=fieldroot+lags['lag'][jj]
-                print('line 108 field',field,lags['lag'][jj],fieldroot,jj)
                 dzg=list(lags['fileh'][jj].keys())[0]
 #                if dzg.keys() != None:
                 data = np.array(lags['fileh'][jj][dzg][dz_dict[field]])
@@ -134,75 +131,23 @@ def ATL15_write():
 #                if dz_dict.get(field)!=None:   # if key in dz_dict
                 
                 field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-#                make_dataset(field,data,field_attrs,[],fo)
-#                exit(-1)
-                dimensions = field_attrs[field]['dimensions'].split(',')
-                data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-                fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-                dset = fo.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
                 if fieldroot == 'year':
-                    dset.make_scale(field)
-                for ii,dim in enumerate(dimensions):
-                    dset.dims[ii].label = scale[dim.strip()]
-                    if fieldroot == 'year':
-                        dset.make_scale(field)
-                    else:    
-                        dset.dims[ii].attach_scale(fo[scale[dim.strip()]])
-                for attr in attr_names:
-                     if 'dimensions' not in attr and 'datatype' not in attr:
-                         create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-                if field_attrs[field]['datatype'].startswith('int'):
-                    dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-                elif field_attrs[field]['datatype'].startswith('float'):
-                    dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+                    make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=True)
+                else:
+                    make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=False)
 
             if jj==0:
                 gh = fo.create_group('height_change')
                 for field in ['x','y']:
                     data = np.array(lags['fileh'][jj][dzg][dz_dict[field]])
-                    print('     jj',jj,field,data.shape)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                    dimensions = field_attrs[field]['dimensions'].split(',')
-                    data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-                    fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-                    dset = gh.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
-                    dset.make_scale(field)
-                    for ii,dim in enumerate(dimensions):
-                        dset.dims[ii].label = scale[dim.strip()]
-                    for attr in attr_names:
-                         if 'dimensions' not in attr and 'datatype' not in attr:
-                             create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-                    if field_attrs[field]['datatype'].startswith('int'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-                    elif field_attrs[field]['datatype'].startswith('float'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=True)
+                    
                 for field in ['data_count','misfit_rms','misfit_scaled_rms','delta_h','delta_h_sigma']:
-                    # missign: 'cell_area','dhdt_mission','dhdt_mission_sigma','ice_mask'
+                    # missing: 'cell_area','dhdt_mission','dhdt_mission_sigma','ice_mask'
                     data = np.array(lags['fileh'][jj][dzg][dz_dict[field]])
-                    print('     jj',jj,field,data.shape)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                    dimensions = field_attrs[field]['dimensions'].split(',')
-                    data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-                    fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-                    dset = gh.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
-                        
-                    for ii,dim in enumerate(dimensions):
-                        dset.dims[ii].label = scale[dim.strip()]
-                        print(field,ii,dim)
-                        if field == 'x' or field =='y':
-                            dset.make_scale(field)
-                        else:
-                            if dim.strip().startswith('Nt'):
-                                dset.dims[ii].attach_scale(fo[scale[dim.strip()]])
-                            else:
-                                dset.dims[ii].attach_scale(gh[scale[dim.strip()]])
-                    for attr in attr_names:
-                         if 'dimensions' not in attr and 'datatype' not in attr:
-                             create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-                    if field_attrs[field]['datatype'].startswith('int'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-                    elif field_attrs[field]['datatype'].startswith('float'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
 
             else:  # one of the lags
                 for fld in ['','_sigma']:
@@ -213,35 +158,13 @@ def ATL15_write():
                     data = np.array(lags['fileh'][jj][dzg][infield])
                     print('     jj',jj,field,data.shape)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                    dimensions = field_attrs[field]['dimensions'].split(',')
-                    data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-                    fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-                    dset = gh.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
-                        
-                    for ii,dim in enumerate(dimensions):
-                        dset.dims[ii].label = scale[dim.strip()]
-                        print(field,ii,dim)
-                        if field == 'x' or field =='y':
-                            dset.make_scale(field)
-                        else:
-                            if dim.strip().startswith('Nt'):
-                                dset.dims[ii].attach_scale(fo[scale[dim.strip()]])
-                            else:
-                                dset.dims[ii].attach_scale(gh[scale[dim.strip()]])
-                    for attr in attr_names:
-                         if 'dimensions' not in attr and 'datatype' not in attr:
-                             create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-                    if field_attrs[field]['datatype'].startswith('int'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-                    elif field_attrs[field]['datatype'].startswith('float'):
-                        dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                
 
 
 
-
-
-        for ii in range(len(lags['fileh'])):
-            lags['fileh'][ii].close()
+        for jj in range(len(lags['fileh'])):
+            lags['fileh'][jj].close()
 #        
 #        for field in [item for item in field_names if not item.startswith('year')]:
 #            if 'lag1' in field:   # need to fix when we get delta_time_1lag
@@ -443,15 +366,17 @@ def ATL15_write():
     
 if __name__=='__main__':
     import argparse
-#    parser=argparse.ArgumentParser()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--directory','-d', type=str, default=os.getcwd(), help='directory to run')
 #    parser.add_argument('ATL11_file', type=str)
 #    parser.add_argument('--Hemisphere','-H', type=int, default=1, help='1 for Norhtern, -1 for Southern')
 #    parser.add_argument('--mosaic', '-m', type=str)
 #    parser.add_argument('--out_path', '-o', type=str, help='default is ATL11_file path')
 #    parser.add_argument('--pdf', action='store_true', default=False, help='write images to .pdf file')
 #    parser.add_argument('--nolog', action='store_true', default=False, help='no writing errors to .log file')
-#    args=parser.parse_args()
-    fileout = ATL15_write()
+    args=parser.parse_args()
+    print('args',args)
+    fileout = ATL15_write(args)
 
 
 
