@@ -10,6 +10,8 @@ for step in centers edges corners; do
     
     python3 make_1415_queue.py $step $defaults_file > queue.txt
 
+    [ -s queue.txt ] || continue
+    
     pboss.py -s queue.txt
     
     pboss.py -r -p -w

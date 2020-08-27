@@ -14,3 +14,8 @@ python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz_10km.h5 --in_group avg_dz_10000m/ -F avg_dz_10000m sigma_avg_dz_10000m
 
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz_20km.h5 --in_group avg_dz_20000m/ -F avg_dz_20000m sigma_avg_dz_20000m
+
+for lag in _lag1 _lag4; do
+    python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz_10km$lag.h5 --in_group avg_dzdt_10000m$lag/ -F avg_dzdt_10000m$lag sigma_avg_dzdt_10000m$lag
+    python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz_20km$lag.h5 --in_group avg_dzdt_20000m$lag/ -F avg_dzdt_20000m$lag sigma_avg_dzdt_20000m$lag
+done
