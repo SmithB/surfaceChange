@@ -5,10 +5,11 @@ source activate ATL14
 defaults_file=$1
 rm -rf par_run
 
-
+[ -z "$2" ] || region_string="-R $2"
+    
 for step in centers edges corners; do
     
-    python3 make_1415_queue.py $step $defaults_file > queue.txt
+    python3 make_1415_queue.py $step $defaults_file $region_string > queue.txt
 
     [ -s queue.txt ] || continue
     
