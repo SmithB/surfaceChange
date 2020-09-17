@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-source activate ATL14
+source activate IS2
 
 defaults_file=$1
 rm -rf par_run
