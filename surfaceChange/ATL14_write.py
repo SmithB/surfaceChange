@@ -11,7 +11,7 @@ from scipy import stats
 import sys, os, h5py, glob, csv
 import io
 import pointCollection as pc
-from PointDatabase.mapData import mapData
+
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -24,7 +24,7 @@ import cartopy.crs as ccrs
 #import cartopy.io.img_tiles as cimgt
 import cartopy.feature as cfeature
 import osgeo.gdal
-import imageio
+#import imageio
 import datetime as dt
 from ATL11.h5util import create_attribute
 
