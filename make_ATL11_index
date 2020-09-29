@@ -7,12 +7,12 @@ hemisphere=$2
 
 > index_queue.txt
 
-for file in $thedir/ATL11_?????_??_??_??.h5; do
+for file in $thedir/ATL11_??????_????_???_??.h5; do 
     out_file=$thedir"/index/"`basename $file`
     [ -f $out_file ] && continue
-    echo "source activate ATL14; python3 /home/besmith4/git_repos/pointCollection/pointCollection/index_glob.py --hemisphere $hemisphere --type ATL11 -g $file --index_file $out_file --dir_root $thedir" >> index_queue.txt
+    echo "source activate IS2; python3 /home/besmith4/git_repos/pointCollection/pointCollection/index_glob.py --hemisphere $hemisphere --type ATL11 -g $file --index_file $out_file --dir_root $thedir" >> index_queue.txt
 done
 
 pboss.py -s index_queue.txt -r -w -j 8
 
-source activate ATL14; python3 ~/git_repos/pointCollection/pointCollection/index_glob.py --type h5_geoindex -g "$thedir/index/ATL11*.h5" --index_file $thedir/index/GeoIndex.h5 --dir_root $thedir/index/ --hemisphere $hemisphere
+source activate IS2; python3 ~/git_repos/pointCollection/pointCollection/index_glob.py --type h5_geoindex -g "$thedir/index/ATL11*.h5" --index_file $thedir/index/GeoIndex.h5 --dir_root $thedir/index/ --hemisphere $hemisphere
