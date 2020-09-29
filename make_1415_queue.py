@@ -16,6 +16,7 @@ import re
 import argparse
 
 
+prog = "/home/besmith4/git_repos/surfaceChange/surfaceChange/ATL11_to_ATL15.py"
 
 # account for a bug in argparse that misinterprets negative agruents
 argv=sys.argv
@@ -38,6 +39,8 @@ if args.step not in ['centers', 'edges','corners']:
     raise(ValueError('argument not known'))
     sys.exit()
 
+XR=None
+YR=None
 if args.region_file is not None:
     line_re=re.compile('(..)\s*=\s*\[\s*(\S+),\s*(\S+)\s*]')
     temp={}
@@ -62,7 +65,8 @@ Wxy=float(defaults['-W'])
 Hxy=Wxy/2
 
 mask_G=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
-mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([20, 20], dtype='bool'))
+mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, 40], dtype='bool'))
+mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([40, 1], dtype='bool'))
 
 try:
     out_dir=defaults['-b']
@@ -118,7 +122,7 @@ for xy0 in zip(xg, yg):
             #if np.sqrt((xy1[0]-320000.)**2 + (xy1[1]- -2520000.)**2) > 2.e5:
             #    continue
             #plt.plot(xy1[0], xy1[1],symbol)
-            cmd='python3 ~/git_repos/surfaceChange/ATL11_to_ATL15.py %d %d --%s @%s ' % (xy1[0], xy1[1], args.step, defaults_file)
+            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
             print('source activate IS2; '+cmd +';'+cmd+' --calc_error_for_xy')
             
 
