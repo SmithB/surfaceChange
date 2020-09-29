@@ -5,19 +5,20 @@ Created on Fri Nov 15 17:15:08 2019
 
 @author: ben
  """
+import os
+#os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+os.environ["OPENBLAS_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+
 import numpy as np
 from LSsurf.smooth_xytb_fit import smooth_xytb_fit
 import pointCollection as pc
-import os
+
 import re
 import sys
 import h5py
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
 from pyTMD import compute_tide_corrections
-
-os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
-os.environ["OPENBLAS_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
 
 
 def get_SRS_proj4(hemisphere):
@@ -27,14 +28,15 @@ def get_SRS_proj4(hemisphere):
         return '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
 
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
-    field_dict_11={'corrected_h':['latitude','longitude','delta_time',\
-                        'h_corr','h_corr_sigma','h_corr_sigma_systematic','quality_summary', 'ref_pt'],\
+    field_dict_11={None:['latitude','longitude','delta_time',\
+                        'h_corr','h_corr_sigma','h_corr_sigma_systematic', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
                         'cycle_stats' : {'tide_ocean','dac'},
-                        'ref_surf':['e_slope','n_slope', 'x_atc']}
+                        'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality']}
     D11_list=pc.geoIndex().from_file(index_file).query_xy_box(xy0[0]+\
                         np.array([-Wxy/2, Wxy/2]), xy0[1]+np.array([-Wxy/2, Wxy/2]), fields=field_dict_11)
     D_list=[]
+    XO_list=[]
     for D11 in D11_list:
         D11.get_xy(proj4_string=SRS_proj4)
         sigma_corr=np.sqrt((7.5*np.abs(np.median(D11.n_slope)))**2+\
@@ -59,14 +61,44 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'ref_pt':D11.ref_pt,
            'cycle':D11.cycle_number,
            'n_cycles': n_cycles,
-           'fit_quality': D11.quality_summary,
+           'fit_quality': D11.fit_quality,
            'tide_ocean': D11.tide_ocean,
            'dac': D11.dac,
            'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018})]
+        
+        D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
+        D_x.fit_quality[:,:,1]=D_x.fit_quality[:,:,0]
+        D_x.get_xy(proj4_string=SRS_proj4)
 
-    D=pc.data().from_list(D_list).ravel_fields()
-    D.index(D.fit_quality != 6)
+        good=np.isfinite(D_x.h_corr)[:,0:2,1].ravel()
+        for field in D_x.fields:
+            # Pull out only cycles 1 and 2
+            temp=getattr(D_x, field)[:,0:2,1]
+            setattr(D_x, field, temp.ravel()[good])
+        zero = np.zeros_like(D_x.h_corr)
+        # filter out large along_track_rss values
+        D_x.index[D_x.along_track_rss<2]
+        blank = zero+np.NaN
+        XO_list += [pc.data().from_dict({'z':D_x.h_corr,
+            'sigma':D_x.h_corr_sigma,
+            'sigma_corr': sigma_corr+np.zeros_like(D_x.h_corr),
+            'x':D_x.x,
+            'y':D_x.y,
+            'latitude':D_x.latitude,
+            'longitude':D_x.longitude,
+            'rgt':D_x.rgt,
+            'ref_pt':blank,
+            'cycle':D_x.cycle_number,
+            'n_cycles':blank,
+            'fit_quality':D_x.fit_quality,
+            'tide_ocean':blank,
+            'dac':blank,
+            'delta_time':D_x.delta_time,
+            'time':D_x.delta_time/24/3600/365.25+2018})]
+        
+    D=pc.data().from_list(D_list+XO_list).ravel_fields()
+    D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
     return D
 
 def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
