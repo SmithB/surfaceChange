@@ -23,8 +23,8 @@ bounds=[xc[1]+np.array([-3.e4, 3.e4]), xc[0]+np.array([-3.e4, 3.e4])]
 srs_proj4='+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs '
 
 grid_z0=fd_grid(bounds, deltas, srs_proj4=srs_proj4)
-grid_dz=fd_grid(bounds+[np.array([0, 5])], [1.e3, 1.e3, 1])
-grid_10km=fd_grid(bounds+[np.array([0, 5])], [1.e4, 1.e4, 1])
+grid_dz=fd_grid(bounds+[np.array([0, 5])], [1.e3, 1.e3, 0.25])
+grid_10km=fd_grid(bounds+[np.array([0, 5])], [1.e4, 1.e4, 0.25])
 
 mask=np.zeros(grid_z0.ctrs[0].size*np.array([1,1]))
 
