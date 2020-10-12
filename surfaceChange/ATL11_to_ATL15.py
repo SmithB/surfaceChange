@@ -76,9 +76,10 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             # Pull out only cycles 1 and 2
             temp=getattr(D_x, field)[:,0:2,1]
             setattr(D_x, field, temp.ravel()[good])
-        zero = np.zeros_like(D_x.h_corr)
+
         # filter out large along_track_rss values
-        D_x.index[D_x.along_track_rss<2]
+        D_x.index(D_x.along_track_rss<2)
+        zero = np.zeros_like(D_x.h_corr)
         blank = zero+np.NaN
         XO_list += [pc.data().from_dict({'z':D_x.h_corr,
             'sigma':D_x.h_corr_sigma,
@@ -98,6 +99,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'time':D_x.delta_time/24/3600/365.25+2018})]
         
     D=pc.data().from_list(D_list+XO_list).ravel_fields()
+    print({field:getattr(D, field).shape for field in D.fields})
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
     return D
 
@@ -279,7 +281,11 @@ def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None, grid
 
     with h5py.File(filename,'r+') as h5f:
         for key in S['E']['sigma_bias']:
-            h5f.create_dataset('/bias/sigma/'+key, data=S['E']['sigma_bias'][key])
+            if key in S['E']['sigma_bias']:
+                print(f'{key} already exists in sigma_bias')
+                h5f['/bias/sigma/'+key][...]=S['E']['sigma_bias'][key]
+            else:
+                h5f.create_dataset('/bias/sigma/'+key, data=S['E']['sigma_bias'][key])
        
     return
 
