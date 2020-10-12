@@ -281,7 +281,7 @@ def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None, grid
 
     with h5py.File(filename,'r+') as h5f:
         for key in S['E']['sigma_bias']:
-            if key in S['E']['sigma_bias']:
+            if 'bias/sigma' in h5f and  key in h5f['/bias/sigma']:
                 print(f'{key} already exists in sigma_bias')
                 h5f['/bias/sigma/'+key][...]=S['E']['sigma_bias'][key]
             else:
