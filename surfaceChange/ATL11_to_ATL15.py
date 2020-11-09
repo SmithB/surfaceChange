@@ -66,9 +66,15 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'dac': D11.dac,
            'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018})]
-        
+
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
-        D_x.fit_quality[:,:,1]=D_x.fit_quality[:,:,0]
+
+        # fit_quality D11 applies to all cycles, but is mapped only to some specific
+        # cycle.
+        temp=np.nanmax(D_x.fit_quality[:,:,0], axis=1)
+        for cycle in range(D_x.shape[1]): 
+            D_x.fit_quality[:,cycle,1]=temp
+
         D_x.get_xy(proj4_string=SRS_proj4)
 
         good=np.isfinite(D_x.h_corr)[:,0:2,1].ravel()
@@ -77,8 +83,6 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             temp=getattr(D_x, field)[:,0:2,1]
             setattr(D_x, field, temp.ravel()[good])
 
-        # filter out large along_track_rss values
-        D_x.index(D_x.along_track_rss<2)
         zero = np.zeros_like(D_x.h_corr)
         blank = zero+np.NaN
         XO_list += [pc.data().from_dict({'z':D_x.h_corr,
@@ -93,11 +97,11 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'cycle':D_x.cycle_number,
             'n_cycles':blank,
             'fit_quality':D_x.fit_quality,
-            'tide_ocean':blank,
-            'dac':blank,
+            'tide_ocean':D_x.tide_ocean,
+            'dac':D_x.dac,
             'delta_time':D_x.delta_time,
             'time':D_x.delta_time/24/3600/365.25+2018})]
-        
+
     D=pc.data().from_list(D_list+XO_list).ravel_fields()
     print({field:getattr(D, field).shape for field in D.fields})
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
