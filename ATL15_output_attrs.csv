@@ -2,7 +2,7 @@
 ROOT,year,years,Nt,float64,year,"Time for each node, in years CE",quarterly h(t) time,
 ROOT,year_lag1,years,Nt_lag1,float64,year_lag1,Time for the midpoint of each quarterly height-change rate,quarterly dh/dt time,
 ROOT,year_lag4,years,Nt_lag4,float64,year_lag4,Time for the midpoint of each annual height-change rate,annual dh/dt time,
-ROOT,year_lag8,years,Nt_lag4,float64,year_lag4,Time for the midpoint of each biennial height-change rate,biennial dh/dt time,
+ROOT,year_lag8,years,Nt_lag4,float64,year_lag8,Time for the midpoint of each biennial height-change rate,biennial dh/dt time,
 ,,,,,,,,
 height_change,x,meters,Nx,float64,x,"x coordinate of the 1-km cell centers, in projected coordinates",polar stereographic x at 1km,3.2
 height_change,y,meters,Ny,float64,y,"y coordinate of the 1-km cell centers, in projected coordinates",polar stereographic y at 1km,3.2
