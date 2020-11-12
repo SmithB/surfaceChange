@@ -71,15 +71,15 @@ def ATL15_write(args):
               'misfit_rms':'misfit_rms',
               'misfit_scaled_rms':'misfit_scaled_rms',
               'delta_h':'dz',
-#              'delta_h_sigma':'sigma_dz',
-#              'dhdt':'dzdt',
-#              'dhdt':'avg_dzdt'
-#              'dhdt_lag1_sigma':'sigma_avg_dzdt_lag1',
-#              'dhdt_lag4':'dhdt_lag4',
-#              'dhdt_lag4_sigma':'dhdt_lag4_sigma',
+              'delta_h_sigma':'sigma_dz',
+              'dhdt':'dzdt',
+              'dhdt':'avg_dzdt',
+              'dhdt_lag1_sigma':'sigma_avg_dzdt_lag1',
+              'dhdt_lag4':'dhdt_lag4',
+              'dhdt_lag4_sigma':'dhdt_lag4_sigma',
 #              'dhdt_mission':'dhdt_mission',
 #              'dhdt_mission_sigma':'dhdt_mission_sigma',
-#              'ice_mask':'ice_mask',
+              'ice_mask':'mask',
 #              'mask_fraction':'mask_fraction',
               }
     scale = {'Nt':'year',
@@ -91,8 +91,8 @@ def ATL15_write(args):
              'Ny_10km':'y_10km',
              'Nx_20km':'x_20km',
              'Ny_20km':'y_20km',
-#             'Nx_40km':'x_40km',
-#             'Ny_40km':'y_40km',             
+             'Nx_40km':'x_40km',
+             'Ny_40km':'y_40km',             
              }
     lags = {
             'file' : ['FH','FH_lag1','FH_lag4'], #,'FH_lag8'],
@@ -102,7 +102,7 @@ def ATL15_write(args):
 
     # establish output file
     kk=0
-    fileout = 'ATL15_yyyymmdd.h5'
+    fileout = args.output
     if os.path.isfile(fileout):
         os.remove(fileout)
     with h5py.File(fileout.encode('ASCII'),'w') as fo:
@@ -183,13 +183,8 @@ def ATL15_write(args):
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser()
-    parser.add_argument('--directory','-d', type=str, default=os.getcwd(), help='directory to run')
-#    parser.add_argument('ATL11_file', type=str)
-#    parser.add_argument('--Hemisphere','-H', type=int, default=1, help='1 for Norhtern, -1 for Southern')
-#    parser.add_argument('--mosaic', '-m', type=str)
-#    parser.add_argument('--out_path', '-o', type=str, help='default is ATL11_file path')
-#    parser.add_argument('--pdf', action='store_true', default=False, help='write images to .pdf file')
-#    parser.add_argument('--nolog', action='store_true', default=False, help='no writing errors to .log file')
+    parser.add_argument('--directory','-d', type=str, default=os.getcwd(), help='directory in which to look for mosaicked files')
+    parser.add_argument('--output','-o', type=str, default="ATL15.h5", help="output file")
     args=parser.parse_args()
     print('args',args)
     fileout = ATL15_write(args)
