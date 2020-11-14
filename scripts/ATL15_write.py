@@ -11,6 +11,7 @@ from scipy import stats
 import sys, os, h5py, glob, csv
 import io
 import pointCollection as pc
+from utils import projection_details
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -28,7 +29,8 @@ from ATL11.h5util import create_attribute
 
 
 def ATL15_write(args):
-    
+    pathin = os.path.dirname(args.directory)
+
     def make_dataset(field,data,field_attrs,file_obj,group_obj,scale_dict,dimScale=False):
         dimensions = field_attrs[field]['dimensions'].split(',')
         if field_attrs[field]['datatype'].startswith('int'):
@@ -39,14 +41,14 @@ def ATL15_write(args):
             fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
         dset = group_obj.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
         for ii,dim in enumerate(dimensions):
-            dset.dims[ii].label = scale[dim.strip()]
+            dset.dims[ii].label = scale_dict[dim.strip()]
             if dimScale:
                 dset.make_scale(field)
             else:
                 if dim.strip().startswith('Nt'):
-                    dset.dims[ii].attach_scale(file_obj[scale[dim.strip()]])
+                    dset.dims[ii].attach_scale(file_obj[scale_dict[dim.strip()]])
                 else:
-                    dset.dims[ii].attach_scale(group_obj[scale[dim.strip()]])
+                    dset.dims[ii].attach_scale(group_obj[scale_dict[dim.strip()]])
 
         for attr in attr_names:
              if 'dimensions' not in attr and 'datatype' not in attr:
@@ -57,7 +59,7 @@ def ATL15_write(args):
             dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
         return file_obj
 
-    dz_dict ={'year':'t',     # ATL15 var : hdf5 var          
+    dz_dict ={'year':'t',     # ATL15product var : mosaic var          
               'year_lag1':'t',
               'year_lag4':'t',
 #              'delta_time':'t',
@@ -72,33 +74,36 @@ def ATL15_write(args):
               'misfit_scaled_rms':'misfit_scaled_rms',
               'delta_h':'dz',
               'delta_h_sigma':'sigma_dz',
-              'dhdt':'dzdt',
-              'dhdt':'avg_dzdt',
-              'dhdt_lag1_sigma':'sigma_avg_dzdt_lag1',
-              'dhdt_lag4':'dhdt_lag4',
-              'dhdt_lag4_sigma':'dhdt_lag4_sigma',
+              
+              'dhdt_lag1':'dzdt_lag1',
+              'dhdt_lag4':'dzdt_lag4',
+              'dhdt_lag8':'dzdt_lag8',
+#              'dhdt':'avg_dzdt',
+              'dhdt_lag1_sigma':'sigma_dzdt_lag1',
+              'dhdt_lag4_sigma':'sigma_dzdt_lag4',
+              'dhdt_lag8_sigma':'sigma_dzdt_lag8',
 #              'dhdt_mission':'dhdt_mission',
 #              'dhdt_mission_sigma':'dhdt_mission_sigma',
-              'ice_mask':'mask',
 #              'mask_fraction':'mask_fraction',
               }
     scale = {'Nt':'year',
              'Nt_lag1':'year_lag1',
              'Nt_lag4':'year_lag4',
+             'Nt_lag8':'year_lag8',
              'Nx':'x',
              'Ny':'y',
-             'Nx_10km':'x_10km',
-             'Ny_10km':'y_10km',
-             'Nx_20km':'x_20km',
-             'Ny_20km':'y_20km',
-             'Nx_40km':'x_40km',
-             'Ny_40km':'y_40km',             
+             'Nx_10km':'x',
+             'Ny_10km':'y',
+             'Nx_20km':'x',
+             'Ny_20km':'y',
+             'Nx_40km':'x',
+             'Ny_40km':'y'             
              }
     lags = {
             'file' : ['FH','FH_lag1','FH_lag4'], #,'FH_lag8'],
             'vari' : ['','_lag1','_lag4'], #,'_lag8']
            }
-    avgs = ['','_10km','_20km','_40km']
+    avgs = ['','_10km','_20km'] #,'_40km']
 
     # establish output file
     kk=0
@@ -106,6 +111,7 @@ def ATL15_write(args):
     if os.path.isfile(fileout):
         os.remove(fileout)
     with h5py.File(fileout.encode('ASCII'),'w') as fo:
+        fo = projection_details(fo,args.Hemisphere)
         # open data attributes file
         with open('../ATL15_output_attrs.csv','r', encoding='utf-8-sig') as attrfile:
             reader=list(csv.DictReader(attrfile))
@@ -113,17 +119,17 @@ def ATL15_write(args):
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
         
         for kk,ave in enumerate(avgs):
-            field_names = [row['field'] for row in reader if row['group'] == 'height_change'+ave]
-
+            group_name=f'height_change{ave}'
+            field_names = [row['field'] for row in reader if row['group']==group_name]
             # loop over dz*.h5 files for one ave
             for jj in range(len(lags['file'])):
-                filein = args.directory+'/dz'+ave+lags['vari'][jj]+'.h5'
-                print('file in ',filein)
+                filein = pathin+'/dz'+ave+lags['vari'][jj]+'.h5'
+
                 if not os.path.isfile(filein):
-                    print('No file:',args.directory+'/'+os.path.basename(filein))
+                    print('No file:',filein)
                     continue
                 else:
-                    print('Reading file:',args.directory+'/'+os.path.basename(filein))
+                    print('Reading file:',filein) #pathin+'/'+os.path.basename(filein))
                 lags['file'][jj] = h5py.File(filein,'r')
                 dzg=list(lags['file'][jj].keys())[0]
                 
@@ -138,12 +144,12 @@ def ATL15_write(args):
                             make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=False)
     
                 if jj==0:
-                    gh = fo.create_group('height_change'+ave)
+                    gh = fo.create_group(group_name) #'height_change'+ave)
                     # spatial dimension scales for the gh
                     for field in ['x','y']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
-                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                        make_dataset(field+ave,data,field_attrs,fo,gh,scale,dimScale=True)
+                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if (field in row['field'] and row['group']==group_name)}
+                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=True)
                     
                     for fld in ['delta_h','delta_h_sigma']:
                         field = fld+ave
@@ -185,6 +191,7 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--directory','-d', type=str, default=os.getcwd(), help='directory in which to look for mosaicked files')
     parser.add_argument('--output','-o', type=str, default="ATL15.h5", help="output file")
+    parser.add_argument('--Hemisphere','-H', type=int, default=1, help='1 for Northern, -1 for Southern')
     args=parser.parse_args()
     print('args',args)
     fileout = ATL15_write(args)
