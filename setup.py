@@ -32,4 +32,5 @@ setup(
     packages=find_packages(),
     scripts=scripts,
     include_package_data=True,
+    package_data={'surfaceChange':['resources/*']}
 )

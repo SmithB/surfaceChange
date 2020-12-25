@@ -128,3 +128,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# backups
+*~
+
+# default argument test scripts
+default_args/ADAPT_*_*.txt

@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
 from pyTMD import compute_tide_corrections
 
+import pdb
 
 def get_SRS_proj4(hemisphere):
     if hemisphere==1:
@@ -66,9 +67,12 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'dac': D11.dac,
            'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018})]
-
+        if len(D11.ref_pt) == 0:
+            continue
+        # N.B.  D11 is getting indexed in this step, and it's leading to the warning in line 76.  Can fix by making crossover_data.from_h5 copy D11 on input
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
-
+        if D_x is None:
+            continue
         # fit_quality D11 applies to all cycles, but is mapped only to some specific
         # cycle.
         temp=np.nanmax(D_x.fit_quality[:,:,0], axis=1)
@@ -103,7 +107,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'time':D_x.delta_time/24/3600/365.25+2018})]
 
     D=pc.data().from_list(D_list+XO_list).ravel_fields()
-    print({field:getattr(D, field).shape for field in D.fields})
+    
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
     return D
 
@@ -143,7 +147,10 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
         global_ref_pt=D.ref_pt[ii]+40130000/20*D.rgt[ii]
         u_ref_pts = np.unique(global_ref_pt)
         # select a subset of the global reference points (this skips the right number of points)
-        sel_ref_pts = u_ref_pts[np.arange(0, len(u_ref_pts), this_rho/rho_target).astype(int)]       
+        # note that the np.arange() call can sometimes return a value of len(u_ref_pts) (?), so 
+        # its output needs to be checked (!)
+        sel_ind=np.arange(0, len(u_ref_pts), this_rho/rho_target).astype(int)
+        sel_ref_pts = u_ref_pts[sel_ind[sel_ind < len(u_ref_pts)]]       
         isub = np.in1d(global_ref_pt, sel_ref_pts)
         ind_buffer.append(ii[isub])
     D.index(np.concatenate(ind_buffer))

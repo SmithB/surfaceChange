@@ -5,25 +5,25 @@ Created on Fri Jan 24 10:45:47 2020
 
 @author: ben05
 """
-import ATL11
 import numpy as np
-from scipy import stats
+#from scipy import stats
 import sys, os, h5py, glob, csv
 import io
 import pointCollection as pc
 
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap, LogNorm
-from matplotlib.backends.backend_pdf import PdfPages
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import matplotlib.ticker as ticker
-import cartopy.crs as ccrs
+#import matplotlib.pyplot as plt
+#import matplotlib as mpl
+#from matplotlib.colors import ListedColormap, LogNorm
+#from matplotlib.backends.backend_pdf import PdfPages
+#from mpl_toolkits.axes_grid1 import make_axes_locatable
+#import matplotlib.ticker as ticker
+#import cartopy.crs as ccrs
 #from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 #import cartopy.io.img_tiles as cimgt
 import cartopy.feature as cfeature
 import osgeo.gdal
 import datetime as dt
+import importlib.resources
 from ATL11.h5util import create_attribute
 
 
@@ -107,9 +107,10 @@ def ATL15_write(args):
         os.remove(fileout)
     with h5py.File(fileout.encode('ASCII'),'w') as fo:
         # open data attributes file
-        with open('../ATL15_output_attrs.csv','r', encoding='utf-8-sig') as attrfile:
-            reader=list(csv.DictReader(attrfile))
-    
+        with importlib.resources.path('surfaceChange','resources') as pp:
+            with open(os.path.join(pp,'ATL15_output_attrs.csv'),'r', encoding='utf-8-sig') as attrfile:
+                reader=list(csv.DictReader(attrfile))
+  
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
         
         for kk,ave in enumerate(avgs):

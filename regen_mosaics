@@ -10,7 +10,7 @@ echo "dz"
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz.h5 --in_group dz/ -F count dz misfit_rms misfit_scaled_rms sigma_dz mask cell_area
 
 echo "z0"
-python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/z0.h5 --in_group z0/ -F  z0 sigma_z0 misfit_rms misfit_scaled_rms mask cell_area
+python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/z0.h5 --in_group z0/ -F  z0 sigma_z0 misfit_rms misfit_scaled_rms mask cell_area count
 
 echo "dz_10km"
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p 10000 -f 10000 -O $base/dz_10km.h5 --in_group avg_dz_10000m/ -F avg_dz_10000m sigma_avg_dz_10000m cell_area
