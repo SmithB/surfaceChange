@@ -6,23 +6,7 @@ Created on Fri Jan 24 10:45:47 2020
 @author: ben05
 """
 import numpy as np
-#from scipy import stats
-import sys, os, h5py, glob, csv
-import io
-import pointCollection as pc
-
-#import matplotlib.pyplot as plt
-#import matplotlib as mpl
-#from matplotlib.colors import ListedColormap, LogNorm
-#from matplotlib.backends.backend_pdf import PdfPages
-#from mpl_toolkits.axes_grid1 import make_axes_locatable
-#import matplotlib.ticker as ticker
-#import cartopy.crs as ccrs
-#from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-#import cartopy.io.img_tiles as cimgt
-import cartopy.feature as cfeature
-import osgeo.gdal
-import datetime as dt
+import  os, h5py,  csv
 import importlib.resources
 from ATL11.h5util import create_attribute
 
@@ -46,7 +30,15 @@ def ATL15_write(args):
                 if dim.strip().startswith('Nt'):
                     dset.dims[ii].attach_scale(file_obj[scale[dim.strip()]])
                 else:
-                    dset.dims[ii].attach_scale(group_obj[scale[dim.strip()]])
+                    if '/' in scale[dim.strip()]:
+                        scale_loc=scale[dim.strip()].split('/')[-1]
+                    else:
+                        scale_loc=scale[dim.strip()]
+                    
+                    try:
+                        dset.dims[ii].attach_scale(group_obj[scale_loc])
+                    except Exception as E:
+                        print(E)
 
         for attr in attr_names:
              if 'dimensions' not in attr and 'datatype' not in attr:
@@ -73,7 +65,7 @@ def ATL15_write(args):
               'delta_h':'dz',
               'delta_h_sigma':'sigma_dz',
               'dhdt':'dzdt',
-              'dhdt':'avg_dzdt',
+              #'dhdt':'avg_dzdt',  ## commented because dhdt was defined twice 
               'dhdt_lag1_sigma':'sigma_avg_dzdt_lag1',
               'dhdt_lag4':'dhdt_lag4',
               'dhdt_lag4_sigma':'dhdt_lag4_sigma',
@@ -87,13 +79,16 @@ def ATL15_write(args):
              'Nt_lag4':'year_lag4',
              'Nx':'x',
              'Ny':'y',
-             'Nx_10km':'x_10km',
-             'Ny_10km':'y_10km',
-             'Nx_20km':'x_20km',
-             'Ny_20km':'y_20km',
-             'Nx_40km':'x_40km',
-             'Ny_40km':'y_40km',             
+             #'Nx_10km':'x_10km',
+             #'Ny_10km':'y_10km',
+             #'Nx_20km':'x_20km',
+             #'Ny_20km':'y_20km',
+             #'Nx_40km':'x_40km',
+             #'Ny_40km':'y_40km',             
              }
+    for avg in ['_10km', '_20km', '_40km']:
+        for dim in ['x','y']:
+            scale[f'N{dim}{avg}']=f'height_change{avg}/{dim}'
     lags = {
             'file' : ['FH','FH_lag1','FH_lag4'], #,'FH_lag8'],
             'vari' : ['','_lag1','_lag4'], #,'_lag8']
@@ -144,7 +139,8 @@ def ATL15_write(args):
                     for field in ['x','y']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                        make_dataset(field+ave,data,field_attrs,fo,gh,scale,dimScale=True)
+                        # changed "field+ave" to "field"
+                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=True)
                     
                     for fld in ['delta_h','delta_h_sigma']:
                         field = fld+ave
