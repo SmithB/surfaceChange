@@ -1,4 +1,4 @@
-﻿group,field,units,dimensions,datatype,coordinates,description,long_name,source
+group,field,units,dimensions,datatype,coordinates,description,long_name,source
 ROOT,year,years,Nt,float64,year,"Time for each node, in years CE",quarterly h(t) time,
 ROOT,year_lag1,years,Nt_lag1,float64,year_lag1,Time for the midpoint of each quarterly height-change rate,quarterly dh/dt time,
 ROOT,year_lag4,years,Nt_lag4,float64,year_lag4,Time for the midpoint of each annual height-change rate,annual dh/dt time,
@@ -53,5 +53,5 @@ height_change_40km,dhdt_lag1_40km,meters years^-1,"Nx_40km, Ny_40km, Nt_lag1",fl
 height_change_40km,dhdt_lag1_sigma_40km,meters years^-1,"Nx_40km, Ny_40km, Nt_lag1",float32,"x,y,../year_lag1",Uncertainty in the 40x40 km average quarterly height change rate,quarterly height-change rate uncertainty at 40 km,3.4
 height_change_40km,dhdt_lag4_40km,meters years^-1,"Nx_40km, Ny_40km, Nt_lag4",float32,"x,y,../year_lag4",40x40 km average annual height change rate,annual height-change rate at 40 km,3.4
 height_change_40km,dhdt_lag4_sigma_40km,meters years^-1,"Nx_40km, Ny_40km, Nt_lag4",float32,"x,y,../year_lag4",Uncertainty in the 40x40 km average annual height change rate,annual height-change rate uncertainty at 40 km,3.4
-height_change_40km,dhdt_mission_40km,meters years^-1,"Nx_40km, Ny_40km",float32,"x,y../year_lag8",40x40 km average biennial height change rate,biennial height-change rate at 40 km,3.4
-height_change_40km,dhdt_mission_sigma_40km,meters years^-1,"Nx_40km, Ny_40km",float32,"x,y../year_lag8",Uncertainty in the 40x40 km average biennial height change rate,biennial height-change rate uncertainty at 40 km,3.4
+height_change_40km,dhdt_lag8_40km,meters years^-1,"Nx_40km, Ny_40km",float32,"x,y../year_lag8",40x40 km average biennial height change rate,biennial height-change rate at 40 km,3.4
+height_change_40km,dhdt_lag8_sigma_40km,meters years^-1,"Nx_40km, Ny_40km",float32,"x,y../year_lag8",Uncertainty in the 40x40 km average biennial height change rate,biennial height-change rate uncertainty at 40 km,3.4
