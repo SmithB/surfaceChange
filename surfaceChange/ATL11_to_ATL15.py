@@ -407,7 +407,7 @@ def main(argv):
     else:
         # If this is an error-calculation run, save the errors to the output file
         S['E']['sigma_z0']=interp_ds(S['E']['sigma_z0'], args.error_res_scale[0])
-        for field in ['sigma_dz', f'sigma_dzdt_lag1', 'sigma_dzdt_lag4']:
+        for field in ['sigma_dz'] + [ f'sigma_dzdt_lag{lag}' for lag in args.dzdt_lags ]:
             S['E'][field] = interp_ds( S['E'][field], args.error_res_scale[1] )
         save_errors_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
     print(f"done with {args.out_name}")
