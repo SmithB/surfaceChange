@@ -49,12 +49,9 @@ def ATL15_write(args):
             dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
         return file_obj
 
-    dz_dict ={'year':'t',     # ATL15 var : hdf5 var          
+    dz_dict ={'year':'t',     # for non-lagged vars. {ATL15 outgoing var name: hdf5 incoming var name}          
               'year_lag1':'t',
               'year_lag4':'t',
-#              'delta_time':'t',
-#              'delta_time_lag1':'t',
-#              'delta_time_lag4':'t',
               'x':'x',
               'y':'y',
               'cell_area':'cell_area',
@@ -64,27 +61,12 @@ def ATL15_write(args):
               'misfit_scaled_rms':'misfit_scaled_rms',
               'delta_h':'dz',
               'delta_h_sigma':'sigma_dz',
-              'dhdt':'dzdt',
-              #'dhdt':'avg_dzdt',  ## commented because dhdt was defined twice 
-              'dhdt_lag1_sigma':'sigma_avg_dzdt_lag1',
-              'dhdt_lag4':'dhdt_lag4',
-              'dhdt_lag4_sigma':'dhdt_lag4_sigma',
-#              'dhdt_mission':'dhdt_mission',
-#              'dhdt_mission_sigma':'dhdt_mission_sigma',
-              'ice_mask':'mask',
-#              'mask_fraction':'mask_fraction',
               }
     scale = {'Nt':'year',
              'Nt_lag1':'year_lag1',
              'Nt_lag4':'year_lag4',
              'Nx':'x',
              'Ny':'y',
-             #'Nx_10km':'x_10km',
-             #'Ny_10km':'y_10km',
-             #'Nx_20km':'x_20km',
-             #'Ny_20km':'y_20km',
-             #'Nx_40km':'x_40km',
-             #'Ny_40km':'y_40km',             
              }
     for avg in ['_10km', '_20km', '_40km']:
         for dim in ['x','y']:
@@ -107,69 +89,76 @@ def ATL15_write(args):
                 reader=list(csv.DictReader(attrfile))
   
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
-        
-        for kk,ave in enumerate(avgs):
-            field_names = [row['field'] for row in reader if row['group'] == 'height_change'+ave]
 
+        for kk,ave in enumerate(avgs):
+            # field_names = [row['field'] for row in reader if row['group'] == 'height_change'+ave]
             # loop over dz*.h5 files for one ave
             for jj in range(len(lags['file'])):
                 filein = args.directory+'/dz'+ave+lags['vari'][jj]+'.h5'
-                print('file in ',filein)
                 if not os.path.isfile(filein):
                     print('No file:',args.directory+'/'+os.path.basename(filein))
                     continue
                 else:
                     print('Reading file:',args.directory+'/'+os.path.basename(filein))
-                lags['file'][jj] = h5py.File(filein,'r')
-                dzg=list(lags['file'][jj].keys())[0]
-                
+                lags['file'][jj] = h5py.File(filein,'r')  # file object
+                dzg=list(lags['file'][jj].keys())[0]      # dzg is group in input file
+
                 if kk==0:  #establish variables in ROOT
-                    for fieldroot in ['year']: #,'delta_time']:
+                    for fieldroot in ['year']: 
                         field=fieldroot+lags['vari'][jj]
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
                         if fieldroot == 'year':
                             make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=True)
-                        else:
-                            make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=False)
     
-                if jj==0:
+                if jj==0:  # no lag
                     gh = fo.create_group('height_change'+ave)
                     # spatial dimension scales for the gh
                     for field in ['x','y']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                        # changed "field+ave" to "field"
                         make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=True)
                     
-                    for fld in ['delta_h','delta_h_sigma']:
+                    for fld in ['cell_area','delta_h','delta_h_sigma']:  # fields that can be ave'd but not lagged
                         field = fld+ave
-                        if fld.endswith('sigma'):
-                            data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
-                        else:
-                            data = np.array(lags['file'][jj][dzg][dzg])
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
-                    
-                    for field in field_names:
-                        if not field.startswith('x') and not field.startswith('y') \
-                        and not field.startswith('delta_h') and 'lag' not in field:
-                            field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                            if dz_dict.get(field)!=None:
-                                data = np.array(lags['file'][jj][dzg][dz_dict[field]+ave])
-                            else:
-                                # place holder data set for now
-                                dimensions = field_attrs[field]['dimensions'].split(',')
-                                data = np.ndarray(shape=tuple([ii+1 for ii in range(len(dimensions))]),dtype=field_attrs[field]['datatype'])
+                        if fld in ['cell_area']:
+                            data = np.array(lags['file'][jj][dzg][dz_dict[fld]])
+                            # fill zeros with invalids
+                            data[data==0.0] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max                        
+                        if fld in ['delta_h_sigma']:
+                            data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
+                        if fld in  ['delta_h']:
+                            data = np.array(lags['file'][jj][dzg][dzg])
 
-                            make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+
+#                    # make output dummy variable, if not in input file                
+#                    for field in field_names:
+#                        print('field ',field)
+#                        if not field.startswith('x') and not field.startswith('y') \
+#                        and not field.startswith('delta_h') and 'lag' not in field:
+#                            field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
+#                            print('field_attrs',field_attrs)
+#                            if dz_dict.get(field)!=None:
+#                                data = np.array(lags['file'][jj][dzg][dz_dict[field]+ave])
+#                            else:
+#                                # place holder data set for now
+#                                dimensions = field_attrs[field]['dimensions'].split(',')
+#                                data = np.ndarray(shape=tuple([ii+1 for ii in range(len(dimensions))]),dtype=field_attrs[field]['datatype'])
+#
+#                            make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
                         
                 else:  # one of the lags
-                    for fld in ['','_sigma']:
-                        field = 'dhdt'+lags['vari'][jj]+fld+ave
-                        data = np.array(lags['file'][jj][dzg][dzg])
-                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
-                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                    field = 'dhdt'+lags['vari'][jj]+ave
+                    data = np.array(lags['file'][jj][dzg][dzg])
+                    field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
+                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                    
+                    field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
+                    data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
+                    field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
+                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
                         
             for jj in range(len(lags['file'])):
                 lags['file'][jj].close()
