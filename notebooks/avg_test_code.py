@@ -39,8 +39,6 @@ args={'avg_scales':[1.e4], 'dzdt_lags':[1, 4]}
 ops=setup_averaging_ops(grid_dz, grid_dz.col_N, args, cell_area=cell_area_1)
 
 
-
-
 if False:
     temp=op.toCSR().dot(mask.ravel())
     fig=plt.figure();
