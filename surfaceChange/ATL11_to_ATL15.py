@@ -34,8 +34,13 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
                         '__calc_internal__' : ['rgt'],
                         'cycle_stats' : {'tide_ocean','dac'},
                         'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality']}
-    D11_list=pc.geoIndex().from_file(index_file).query_xy_box(xy0[0]+\
-                        np.array([-Wxy/2, Wxy/2]), xy0[1]+np.array([-Wxy/2, Wxy/2]), fields=field_dict_11)
+    try:
+        # catch empty data
+        D11_list=pc.geoIndex().from_file(index_file).query_xy_box(
+            xy0[0]+np.array([-Wxy/2, Wxy/2]), \
+            xy0[1]+np.array([-Wxy/2, Wxy/2]), fields=field_dict_11)
+    except ValueError:
+        return None
     D_list=[]
     XO_list=[]
     for D11 in D11_list:
@@ -69,7 +74,8 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'time':D11.delta_time/24/3600/365.25+2018})]
         if len(D11.ref_pt) == 0:
             continue
-        # N.B.  D11 is getting indexed in this step, and it's leading to the warning in line 76.  Can fix by making crossover_data.from_h5 copy D11 on input
+        # N.B.  D11 is getting indexed in this step, and it's leading to the warning in 
+        # line 76.  Can fix by making crossover_data.from_h5 copy D11 on input
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
         if D_x is None:
             continue
@@ -105,9 +111,11 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'dac':D_x.dac,
             'delta_time':D_x.delta_time,
             'time':D_x.delta_time/24/3600/365.25+2018})]
-
-    D=pc.data().from_list(D_list+XO_list).ravel_fields()
-    
+    try:
+        D=pc.data().from_list(D_list+XO_list).ravel_fields()
+    except ValueError:
+        # catch empty data
+        return None
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
     return D
 
@@ -170,6 +178,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             tide_mask_file=None,\
             tide_directory=None,\
             avg_scales=None,\
+            edge_pad=None,\
             error_res_scale=None,\
             calc_error_file=None):
     '''
@@ -222,7 +231,21 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         N0=data.size
         decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
         print(f'decimated {N0} to {data.size}')
-               
+    
+    if data is None:
+        print("No data present for region, returning.")
+        return None
+    
+    if data.time.max()-data.time.min() < 80./365.:
+        print("time span too short, returning.")
+        return None
+    
+    if edge_pad is not None:
+        ctr_dist = np.max(np.abs(data.x-xy0[0]), np.abs(data.y-xy0[1]))
+        in_ctr = ctr_dist < Wxy/2 - edge_pad
+        if np.sum(in_ctr) < 50:
+            return None
+    
     # apply the tides if a directory has been provided
     if tide_mask_file is not None:
         apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
@@ -233,7 +256,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         # the three-sigma edit
         data.assign({'editable':  (np.abs(data.x-xy0[0])<=W_edit/2) & (np.abs(data.y-xy0[1])<=W_edit/2)})
     
-    # call smooth_xytb_fit
+    # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
@@ -370,10 +393,16 @@ def main(argv):
         re_match=re.compile('E(.*)_N(.*).h5').search(args.calc_error_file)
         args.xy0=[float(re_match.group(ii))*1000 for ii in [1, 2]]
         args.out_name=args.calc_error_file
+        if not os.path.isfile(args.out_name):
+            print(f"{args.out_name} not found, returning")
+            return
         
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
-
+        if not os.path.isfile(args.out_name):
+            print(f"{args.out_name} not found, returning")
+            return
+        
     if args.error_res_scale is not None:
         if args.calc_error_file is not None:
             for ii, key in enumerate(['z0','dz']):
@@ -401,10 +430,13 @@ def main(argv):
            error_res_scale=args.error_res_scale, \
            avg_scales=args.avg_scales)
 
-    if args.calc_error_file is None:
+    if S is None:
+        return
+    
+    if args.calc_error_file is None and 'm' in S and len(S['m'].keys()) > 0:
         # if this isn't an error-calculation run, save the gridded fit data to the output file
         save_fit_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
-    else:
+    elif 'E' in S and len(S['E'].keys()) > 0:
         # If this is an error-calculation run, save the errors to the output file
         S['E']['sigma_z0']=interp_ds(S['E']['sigma_z0'], args.error_res_scale[0])
         for field in ['sigma_dz'] + [ f'sigma_dzdt_lag{lag}' for lag in args.dzdt_lags ]:
