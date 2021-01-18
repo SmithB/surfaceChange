@@ -15,7 +15,19 @@ import os
 import re
 import argparse
 
+def pad_mask_canvas(D, N):
+    dx=np.diff(D.x[0:2])
+    left=np.arange(-N*dx,0, dx)
+    right=np.arange(0, N*dx, dx)
+    x1=np.unique(np.concatenate([left+D.x[0], D.x, D.x[-1]+right]))
+    y1=np.unique(np.concatenate([left+D.y[0], D.y, D.y[-1]+right]))
+    cols=np.flatnonzero(np.in1d(x1, D.x))
+    rows=np.flatnonzero(np.in1d(y1, D.y))
+    z1=np.zeros([y1.size, x1.size], dtype='bool')
+    z1[rows[0]:rows[-1]+1,cols[0]:cols[-1]+1]=D.z.astype('bool')
+    return pc.grid.data().from_dict({'x':x1, 'y':y1,'z':z1})
 
+# define the script
 prog = "/home/besmith4/git_repos/surfaceChange/surfaceChange/ATL11_to_ATL15.py"
 
 # account for a bug in argparse that misinterprets negative agruents
@@ -30,10 +42,8 @@ parser.add_argument('defaults_file', type=str)
 parser.add_argument('--region_file', '-R', type=str)
 args=parser.parse_args()
 
-
 if len(sys.argv) > 2:
     defaults_file=os.path.abspath(sys.argv[2])
-
 
 if args.step not in ['centers', 'edges','corners']:
     raise(ValueError('argument not known'))
@@ -58,15 +68,16 @@ with open(args.defaults_file,'r') as fh:
        m=defaults_re.search(line)
        if m is not None:
            defaults[m.group(1)]=m.group(2)
-#print( defaults)
-#sys.exit()
 
 Wxy=float(defaults['-W'])
 Hxy=Wxy/2
 
-mask_G=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
-mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, 40], dtype='bool'))
-mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([40, 1], dtype='bool'))
+
+temp=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
+
+mask_G=pad_mask_canvas(temp, 200)
+mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
+mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/1000)+1, 1], dtype='bool'))
 
 try:
     out_dir=defaults['-b']
