@@ -53,7 +53,7 @@ def ATL14_write(input_file, fileout):
         # get handle for input file with ROOT and height_change variables.
         FH = h5py.File(input_file,'r')
         if 'z0' not in FH:
-            print('no zo')
+            print('no z0.h5 file')
             FH.close()
             exit(-1)
         with importlib.resources.path('surfaceChange','resources') as pp:
