@@ -58,7 +58,9 @@ def ATL14_write(input_file, fileout):
             dimensions = field_attrs[field]['dimensions'].split(',')
             fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.array(FH['z0'][dz_dict[field]])
-            data = np.nan_to_num(data,fill_value)
+            
+            data = np.nan_to_num(data,nan=fill_value)
+
             nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
             dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
@@ -79,7 +81,8 @@ def ATL14_write(input_file, fileout):
             elif field_attrs[field]['datatype'].startswith('float'):
                 fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
                 #data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-            data = np.nan_to_num(data,fill_value)
+
+            data = np.nan_to_num(data,nan=fill_value)
             dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
                                         dimensions,
