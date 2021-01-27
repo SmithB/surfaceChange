@@ -9,46 +9,41 @@ import numpy as np
 import  os, h5py,  csv
 import importlib.resources
 from ATL11.h5util import create_attribute
+from netCDF4 import Dataset
+import alphashape
 
 
 def ATL15_write(args):
-    
-    def make_dataset(field,data,field_attrs,file_obj,group_obj,scale,dimScale=False):
+
+    def make_dataset(field,data,field_attrs,file_obj,group_obj,scale,nctype,dimScale=False):
         dimensions = field_attrs[field]['dimensions'].split(',')
+        dimensions = tuple(x.strip() for x in dimensions)
         if field_attrs[field]['datatype'].startswith('int'):
-            data = np.nan_to_num(data,nan=np.iinfo(np.dtype(field_attrs[field]['datatype'])).max)
-            fillvalue = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
+            fill_value = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
         elif field_attrs[field]['datatype'].startswith('float'):
-            data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
-            fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-        dset = group_obj.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
-        for ii,dim in enumerate(dimensions):
-            dset.dims[ii].label = scale[dim.strip()]
-            if dimScale:
-                dset.make_scale(field)
-            else:
-                if dim.strip().startswith('Nt'):
-                    dset.dims[ii].attach_scale(file_obj[scale[dim.strip()]])
-                else:
-                    if '/' in scale[dim.strip()]:
-                        scale_loc=scale[dim.strip()].split('/')[-1]
-                    else:
-                        scale_loc=scale[dim.strip()]
-                    
-                    try:
-                        dset.dims[ii].attach_scale(group_obj[scale_loc])
-                    except Exception as E:
-                        print(E)
+            fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+        data = np.nan_to_num(data,nan=fill_value)
 
+        if dimScale:
+            group_obj.createDimension(field_attrs[field]['dimensions'],data.shape[0])
+
+        if field.startswith('year'):
+            dsetvar = file_obj.createVariable(field,
+                                              nctype[field_attrs[field]['datatype']],
+                                              dimensions,
+                                              fill_value=fill_value)
+        else:
+            dsetvar = group_obj.createVariable(field,
+                                               nctype[field_attrs[field]['datatype']],
+                                               dimensions,
+                                               fill_value=fill_value)
+            
+        dsetvar[:] = data
         for attr in attr_names:
-             if 'dimensions' not in attr and 'datatype' not in attr:
-                 create_attribute(dset.id, attr, [], str(field_attrs[field][attr]))
-        if field_attrs[field]['datatype'].startswith('int'):
-            dset.attrs['_FillValue'.encode('ASCII')] = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
-        elif field_attrs[field]['datatype'].startswith('float'):
-            dset.attrs['_FillValue'.encode('ASCII')] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-        return file_obj
+            dsetvar.setncattr(attr,field_attrs[field][attr])
 
+        return file_obj
+    
     dz_dict ={'year':'t',     # for non-lagged vars. {ATL15 outgoing var name: hdf5 incoming var name}          
               'year_lag1':'t',
               'year_lag4':'t',
@@ -62,6 +57,9 @@ def ATL15_write(args):
               'delta_h':'dz',
               'delta_h_sigma':'sigma_dz',
               }
+    nctype = {'float64':'f8',
+              'float32':'f4',
+              'int8':'i1'}
     scale = {'Nt':'year',
              'Nt_lag1':'year_lag1',
              'Nt_lag4':'year_lag4',
@@ -71,6 +69,7 @@ def ATL15_write(args):
     for avg in ['_10km', '_20km', '_40km']:
         for dim in ['x','y']:
             scale[f'N{dim}{avg}']=f'height_change{avg}/{dim}'
+
     lags = {
             'file' : ['FH','FH_lag1','FH_lag4','FH_lag8'],
             'vari' : ['','_lag1','_lag4','_lag8']
@@ -79,14 +78,12 @@ def ATL15_write(args):
 
     # establish output file
     fileout = args.output
-    if os.path.isfile(fileout):
-        os.remove(fileout)
-    with h5py.File(fileout.encode('ASCII'),'w') as fo:
+    with Dataset(fileout,'w',clobber=True) as nc:
         # open data attributes file
         with importlib.resources.path('surfaceChange','resources') as pp:
             with open(os.path.join(pp,'ATL15_output_attrs.csv'),'r', encoding='utf-8-sig') as attrfile:
                 reader=list(csv.DictReader(attrfile))
-  
+
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
 
         for kk,ave in enumerate(avgs):
@@ -105,17 +102,17 @@ def ATL15_write(args):
                     for fieldroot in ['year']: 
                         field=fieldroot+lags['vari'][jj]
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
-                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
+                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='ROOT'}
                         if fieldroot == 'year':
-                            make_dataset(field,data,field_attrs,fo,fo,scale,dimScale=True)
-
+                            make_dataset(field,data,field_attrs,nc,nc,scale,nctype,dimScale=True)
+    
                 if jj==0:  # no lag
-                    gh = fo.create_group('height_change'+ave)
-                    # spatial dimension scales for the gh
+                    nc.createGroup('height_change'+ave)
+                    # spatial dimension scales for the group
                     for field in ['x','y']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=True)
+                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=True)
                     
                     for fld in ['cell_area','delta_h','delta_h_sigma','misfit_rms','misfit_scaled_rms']:  # fields that can be ave'd but not lagged
                         if kk>0 and fld.startswith('misfit'):
@@ -131,18 +128,18 @@ def ATL15_write(args):
                         if fld in  ['delta_h']:
                             data = np.array(lags['file'][jj][dzg][dzg])
 
-                        make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
-                        
+                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
+
                 else:  # one of the lags
                     field = 'dhdt'+lags['vari'][jj]+ave
                     data = np.array(lags['file'][jj][dzg][dzg])
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                    make_dataset(field,data,field_attrs,fo,gh,scale,dimScale=False)
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                         
             for jj in range(len(lags['file'])):
                 try:
