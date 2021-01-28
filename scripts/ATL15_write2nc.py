@@ -13,7 +13,7 @@ from netCDF4 import Dataset
 import alphashape
 
 
-def ATL15_write(args):
+def ATL15_write2nc(args):
 
     def make_dataset(field,data,field_attrs,file_obj,group_obj,scale,nctype,dimScale=False):
         dimensions = field_attrs[field]['dimensions'].split(',')
@@ -77,7 +77,9 @@ def ATL15_write(args):
     avgs = ['','_10km','_20km','_40km']
 
     # establish output file
-    fileout = args.output
+    fileout = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version +'.nc'
+    print('output file:',fileout)
+
     with Dataset(fileout,'w',clobber=True) as nc:
         # open data attributes file
         with importlib.resources.path('surfaceChange','resources') as pp:
@@ -89,12 +91,12 @@ def ATL15_write(args):
         for kk,ave in enumerate(avgs):
             # loop over dz*.h5 files for one ave
             for jj in range(len(lags['file'])):
-                filein = args.directory+'/dz'+ave+lags['vari'][jj]+'.h5'
+                filein = args.base_dir.rstrip('/')+'/dz'+ave+lags['vari'][jj]+'.h5'
                 if not os.path.isfile(filein):
-                    print('No file:',args.directory+'/'+os.path.basename(filein))
+                    print('No file:',args.base_dir.rstrip('/')+'/'+os.path.basename(filein))
                     continue
                 else:
-                    print('Reading file:',args.directory+'/'+os.path.basename(filein))
+                    print('Reading file:',args.base_dir.rstrip('/')+'/'+os.path.basename(filein))
                 lags['file'][jj] = h5py.File(filein,'r')  # file object
                 dzg=list(lags['file'][jj].keys())[0]      # dzg is group in input file
 
@@ -121,23 +123,27 @@ def ATL15_write(args):
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                         if fld in ['cell_area','misfit_rms','misfit_scaled_rms']:
                             data = np.array(lags['file'][jj][dzg][dz_dict[fld]])
+                            data = np.moveaxis(data,0,1)
                             # fill zeros with invalids
                             data[data==0.0] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max                        
                         if fld in ['delta_h_sigma']:
                             data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
+                            data = np.moveaxis(data,0,1)
                         if fld in  ['delta_h']:
                             data = np.array(lags['file'][jj][dzg][dzg])
-
+                            data = np.moveaxis(data,0,1)
                         make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
 
                 else:  # one of the lags
                     field = 'dhdt'+lags['vari'][jj]+ave
                     data = np.array(lags['file'][jj][dzg][dzg])
+                    data = np.moveaxis(data,0,1)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
+                    data = np.moveaxis(data,0,1)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                         
@@ -152,12 +158,23 @@ def ATL15_write(args):
 
 if __name__=='__main__':
     import argparse
-    parser=argparse.ArgumentParser()
-    parser.add_argument('--directory','-d', type=str, default=os.getcwd(), help='directory in which to look for mosaicked files')
-    parser.add_argument('--output','-o', type=str, default="ATL15.h5", help="output file")
+    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-b','--base_dir', type=str, default=os.getcwd(), help='directory in which to look for mosaicked .h5 files')
+    parser.add_argument('-rr','--region', type=str, help='2-letter region indicator \n'
+                                                         '\t AA: Antarctica \n'
+                                                         '\t AK: Alaska \n'
+                                                         '\t CN: Arctic Canada North \n'
+                                                         '\t CS: Arctic Canada South \n'
+                                                         '\t GL: Greeland and peripheral ice caps \n'
+                                                         '\t IC: Iceland \n'
+                                                         '\t SV: Svalbard \n'
+                                                         '\t RU: Russian Arctic')
+    parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
+    parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
+    parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
     args=parser.parse_args()
     print('args',args)
-    fileout = ATL15_write(args)
+    fileout = ATL15_write2nc(args)
 
 
 
