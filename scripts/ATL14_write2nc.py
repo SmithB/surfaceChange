@@ -60,7 +60,9 @@ def ATL14_write2nc(args):
             dimensions = field_attrs[field]['dimensions'].split(',')
             fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.array(FH['z0'][dz_dict[field]])
+            
             data = np.nan_to_num(data,nan=fill_value)
+
             nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
             dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
