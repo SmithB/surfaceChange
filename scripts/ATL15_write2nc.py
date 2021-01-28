@@ -10,7 +10,7 @@ import  os, h5py,  csv
 import importlib.resources
 from ATL11.h5util import create_attribute
 from netCDF4 import Dataset
-import alphashape
+
 
 
 def ATL15_write2nc(args):
