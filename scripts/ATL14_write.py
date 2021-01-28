@@ -13,24 +13,10 @@ import io
 import pointCollection as pc
 import importlib.resources
 
-#import ATL11
-#import matplotlib.pyplot as plt
-#import matplotlib as mpl
-#from matplotlib.colors import ListedColormap, LogNorm
-#from matplotlib.backends.backend_pdf import PdfPages
-#from mpl_toolkits.axes_grid1 import make_axes_locatable
-#import matplotlib.ticker as ticker
-#import cartopy.crs as ccrs
-#from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-#import cartopy.io.img_tiles as cimgt
-#import cartopy.feature as cfeature
-#import osgeo.gdal
-#import imageio
-import datetime as dt
 from ATL11.h5util import create_attribute
 
 
-def ATL14_write(input_file, fileout):
+def ATL14_write(args):
     dz_dict ={'x':'x',   # ATL14 varname : z0.h5 varname
               'y':'y',
               'h':'z0',
@@ -46,16 +32,21 @@ def ATL14_write(input_file, fileout):
              }
 
     # establish output file
-    print('output file',fileout)
+    fileout = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version +'.h5'
+    print('output file:',fileout)
+
     if os.path.isfile(fileout):
         os.remove(fileout)
     with h5py.File(fileout.encode('ASCII'),'w') as fo:
         # get handle for input file with ROOT and height_change variables.
-        FH = h5py.File(input_file,'r')
+        FH = h5py.File(args.base_dir.rstrip('/')+'/z0.h5','r')
         if 'z0' not in FH:
             print('no z0.h5 file')
             FH.close()
             exit(-1)
+        else:
+            print('Reading file:',args.base_dir.rstrip('/')+'/z0.h5')
+
         with importlib.resources.path('surfaceChange','resources') as pp:
             with open(os.path.join(pp,'ATL14_output_attrs.csv'),'r', encoding='utf-8-sig') as attrfile:
                 reader=list(csv.DictReader(attrfile))
@@ -64,10 +55,8 @@ def ATL14_write(input_file, fileout):
         
         # work ROOT group first
         field_names = [row['field'] for row in reader if 'ROOT' in row['group']]
-        print(field_names)
         #establish variables that are dimension scales first
         for field in ['x', 'y']: 
-            print('field',field)
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
             data = np.array(FH['z0'][dz_dict[field]])
@@ -76,7 +65,6 @@ def ATL14_write(input_file, fileout):
             dset = fo.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
             dset.make_scale(field)
             for ii,dim in enumerate(dimensions):
-                print(field,dim)
                 dset.dims[ii].label = scale[dim.strip()]
             for attr in attr_names:
                  if 'dimensions' not in attr and 'datatype' not in attr:
@@ -90,23 +78,20 @@ def ATL14_write(input_file, fileout):
             # read attrs from .csv
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
-            datatype = field_attrs[field]['datatype']
             if dz_dict.get(field)!=None:   # if key in dz_dict
                 data = np.squeeze(np.array(FH['z0'][dz_dict[field]]))
+                data = np.moveaxis(data,0,1)
             else:
                 data = np.ndarray(shape=tuple([ii+1 for ii in range(len(dimensions))]),dtype=float)
-            print('line 93',field, dimensions, datatype)
+                data = np.moveaxis(data,0,1)
             if field_attrs[field]['datatype'].startswith('int'):
-                data = np.nan_to_num(data,nan=np.iinfo(np.dtype(field_attrs[field]['datatype'])).max)
                 fillvalue = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
             elif field_attrs[field]['datatype'].startswith('float'):
-                data = np.nan_to_num(data,nan=np.finfo(np.dtype(field_attrs[field]['datatype'])).max)
                 fillvalue = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
-            print('shape',data.shape)
+            data = np.nan_to_num(data,nan=fillvalue)
             
             dset = fo.create_dataset(field.encode('ASCII'),data=data,fillvalue=fillvalue,chunks=True,compression=6,dtype=field_attrs[field]['datatype'])
             for ii,dim in enumerate(dimensions):
-                print('line 98',ii,dim)
                 dset.dims[ii].label = scale[dim.strip()]
                 dset.dims[ii].attach_scale(fo[scale[dim.strip()]])
             for attr in attr_names:
@@ -123,11 +108,23 @@ def ATL14_write(input_file, fileout):
     
 if __name__=='__main__':
     import argparse
-    parser=argparse.ArgumentParser()
-    parser.add_argument('mosaic_file', type=str, help='z0 file generated by make_mosaic.py (see regen_mosaics.py)')
-    parser.add_argument('ATL14_file', type=str, help='ATL14 file to write')
+    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-b','--base_dir', type=str, default=os.getcwd(), help='directory in which to look for mosaicked .h5 files')
+    parser.add_argument('-rr','--region', type=str, help='2-letter region indicator \n'
+                                                         '\t AA: Antarctica \n'
+                                                         '\t AK: Alaska \n'
+                                                         '\t CN: Arctic Canada North \n'
+                                                         '\t CS: Arctic Canada South \n'
+                                                         '\t GL: Greeland and peripheral ice caps \n'
+                                                         '\t IC: Iceland \n'
+                                                         '\t SV: Svalbard \n'
+                                                         '\t RU: Russian Arctic')
+    parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
+    parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
+    parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
     args=parser.parse_args()
-    fileout = ATL14_write(args.mosaic_file, args.ATL14_file)
+    print('args',args)
+    fileout = ATL14_write(args)
 
 
 
