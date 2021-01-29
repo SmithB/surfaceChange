@@ -80,10 +80,8 @@ def ATL14_write(args):
             dimensions = field_attrs[field]['dimensions'].split(',')
             if dz_dict.get(field)!=None:   # if key in dz_dict
                 data = np.squeeze(np.array(FH['z0'][dz_dict[field]]))
-                data = np.moveaxis(data,0,1)
             else:
                 data = np.ndarray(shape=tuple([ii+1 for ii in range(len(dimensions))]),dtype=float)
-                data = np.moveaxis(data,0,1)
             if field_attrs[field]['datatype'].startswith('int'):
                 fillvalue = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
             elif field_attrs[field]['datatype'].startswith('float'):

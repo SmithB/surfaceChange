@@ -1,10 +1,10 @@
 ﻿group,field,units,dimensions,datatype,coordinates,description,long_name,source
 ROOT,x,meters,Nx,float64,x,"x coordinate of the DEM cell centers, in projected coordinates",Polar stereographic x,3.2
 ROOT,y,meters,Ny,float64,y,"y coordinate of the DEM cell centers, in projected coordinates ",Polar stereographic y,3.2
-ROOT,h,meters,"Nx, Ny",float32,"x,y","DEM surface height, referenced to WGS84",DEM height,3.2
-ROOT,h_sigma,meters,"Nx, Ny",float32,"x,y",Uncertainty in the DEM surface height,DEM uncertainty,4.1
-ROOT,cell_area,meters^2,"Nx, Ny",float32,"x,y","Area of each grid cell, accounting for the area distortion in the polar-stereographic projections",DEM grid cell area,3.4
-ROOT,ice_mask,counts,"Nx, Ny",int8,"x,y","Mask indicating 1: ice, 0: ocean or bare land",ice mask,3.3.2
-ROOT,data_count,counts,"Nx, Ny",float32,"x,y",Weighted number of data contributing to each node in the DEM.,DEM data count,5.2.4.4
-ROOT,misfit_rms,meters,"Nx, Ny",float32,"x,y",Root-mean_square of the residuals associated with each DEM node,DEM per-node data residual,5.2.4.4
-ROOT,misfit_scaled_rms,counts,"Nx, Ny",float32,"x,y",Root-mean_square of the error-scaled residuals associated with each DEM node,DEM per-node scaled data uncertainty,5.2.4.4
+ROOT,h,meters,"Ny, Nx",float32,"y,x","DEM surface height, referenced to WGS84",DEM height,3.2
+ROOT,h_sigma,meters,"Ny, Nx",float32,"y,x",Uncertainty in the DEM surface height,DEM uncertainty,4.1
+ROOT,cell_area,meters^2,"Ny, Nx",float32,"y,x","Area of each grid cell, accounting for the area distortion in the polar-stereographic projections",DEM grid cell area,3.4
+ROOT,ice_mask,counts,"Ny, Nx",int8,"y,x","Mask indicating 1: ice, 0: ocean or bare land",ice mask,3.3.2
+ROOT,data_count,counts,"Ny, Nx",float32,"y,x",Weighted number of data contributing to each node in the DEM.,DEM data count,5.2.4.4
+ROOT,misfit_rms,meters,"Ny, Nx",float32,"y,x",Root-mean_square of the residuals associated with each DEM node,DEM per-node data residual,5.2.4.4
+ROOT,misfit_scaled_rms,counts,"Ny, Nx",float32,"y,x",Root-mean_square of the error-scaled residuals associated with each DEM node,DEM per-node scaled data uncertainty,5.2.4.4
