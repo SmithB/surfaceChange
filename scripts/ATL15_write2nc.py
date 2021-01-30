@@ -32,6 +32,9 @@ def ATL15_write2nc(args):
         dsetvar[:] = data
         for attr in attr_names:
             dsetvar.setncattr(attr,field_attrs[field][attr])
+        # add attribute for projection
+        if not field.startswith('time'):
+            dsetvar.setncattr('grid_mapping','polar_projection')
 
         return file_obj
     
@@ -101,6 +104,22 @@ def ATL15_write2nc(args):
     
                 if jj==0:  # no lag
                     nc.createGroup('height_change'+ave)
+                    # each group needs a projection variable
+                    if args.region in ['AK','CN','CS','GL','IC','SV','RU']:
+                        proj_var = nc.groups['height_change'+ave].createVariable('polar_projection',np.int32,())
+                        proj_var.grid_mapping_name = 'Polar Stereographic'
+                        proj_var.straight_vertical_longitude_from_pole = -45.0
+                        proj_var.latitude_of_projection_origin = 90.0
+                        proj_var.standard_parallel = 70.0
+                        proj_var.crs_wkt = 'PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]'
+                    elif args.region == 'AA':
+                        proj_var = nc.groups['height_change'+ave].createVariable('polar_projection',np.int32,())
+                        proj_var.grid_mapping_name = 'Polar Stereographic'
+                        proj_var.straight_vertical_longitude_from_pole = 0.0
+                        proj_var.latitude_of_projection_origin = -90.0
+                        proj_var.standard_parallel = -71.0
+                        proj_var.crs_wkt = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
+                                       
                     # dimension scales for each group
                     for field in ['x','y','time']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
