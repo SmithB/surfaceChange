@@ -8,10 +8,7 @@ Created on Fri Jan 24 10:45:47 2020
 import numpy as np
 import  os, h5py,  csv
 import importlib.resources
-from ATL11.h5util import create_attribute
 from netCDF4 import Dataset
-
-
 
 def ATL15_write2nc(args):
 
@@ -27,26 +24,24 @@ def ATL15_write2nc(args):
         if dimScale:
             group_obj.createDimension(field_attrs[field]['dimensions'],data.shape[0])
 
-        if field.startswith('year'):
-            dsetvar = file_obj.createVariable(field,
-                                              nctype[field_attrs[field]['datatype']],
-                                              dimensions,
-                                              fill_value=fill_value)
-        else:
-            dsetvar = group_obj.createVariable(field,
-                                               nctype[field_attrs[field]['datatype']],
-                                               dimensions,
-                                               fill_value=fill_value)
+        dsetvar = group_obj.createVariable(field,
+                                           nctype[field_attrs[field]['datatype']],
+                                           dimensions,
+                                           fill_value=fill_value)
             
         dsetvar[:] = data
         for attr in attr_names:
             dsetvar.setncattr(attr,field_attrs[field][attr])
+        # add attribute for projection
+        if not field.startswith('time'):
+            dsetvar.setncattr('grid_mapping','polar_projection')
 
         return file_obj
     
-    dz_dict ={'year':'t',     # for non-lagged vars. {ATL15 outgoing var name: hdf5 incoming var name}          
-              'year_lag1':'t',
-              'year_lag4':'t',
+    dz_dict ={'time':'t',     # for non-lagged vars. {ATL15 outgoing var name: hdf5 incoming var name}          
+              'time_lag1':'t',
+              'time_lag4':'t',
+              'time_lag8':'t',
               'x':'x',
               'y':'y',
               'cell_area':'cell_area',
@@ -56,13 +51,20 @@ def ATL15_write2nc(args):
               'misfit_scaled_rms':'misfit_scaled_rms',
               'delta_h':'dz',
               'delta_h_sigma':'sigma_dz',
+              'delta_h_10km':'avg_dz_10000m',
+              'delta_h_sigma_10km':'sigma_avg_dz_10000m',
+              'delta_h_20km':'avg_dz_20000m',
+              'delta_h_sigma_20km':'sigma_avg_dz_20000m',
+              'delta_h_40km':'avg_dz_40000m',
+              'delta_h_sigma_40km':'sigma_avg_dz_40000m',
               }
     nctype = {'float64':'f8',
               'float32':'f4',
               'int8':'i1'}
-    scale = {'Nt':'year',
-             'Nt_lag1':'year_lag1',
-             'Nt_lag4':'year_lag4',
+    scale = {'Nt':'time',
+             'Nt_lag1':'time_lag1',
+             'Nt_lag4':'time_lag4',
+             'Nt_lag8':'time_lag8',
              'Nx':'x',
              'Ny':'y',
              }
@@ -99,51 +101,62 @@ def ATL15_write2nc(args):
                     print('Reading file:',args.base_dir.rstrip('/')+'/'+os.path.basename(filein))
                 lags['file'][jj] = h5py.File(filein,'r')  # file object
                 dzg=list(lags['file'][jj].keys())[0]      # dzg is group in input file
-
-                if kk==0:  #establish variables in ROOT
-                    for fieldroot in ['year']: 
-                        field=fieldroot+lags['vari'][jj]
-                        data = np.array(lags['file'][jj][dzg][dz_dict[field]])
-                        field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='ROOT'}
-                        if fieldroot == 'year':
-                            make_dataset(field,data,field_attrs,nc,nc,scale,nctype,dimScale=True)
     
                 if jj==0:  # no lag
                     nc.createGroup('height_change'+ave)
-                    # spatial dimension scales for the group
-                    for field in ['x','y']:
+                    # each group needs a projection variable
+                    if args.region in ['AK','CN','CS','GL','IC','SV','RU']:
+                        proj_var = nc.groups['height_change'+ave].createVariable('polar_projection',np.int32,())
+                        proj_var.grid_mapping_name = 'Polar Stereographic'
+                        proj_var.straight_vertical_longitude_from_pole = -45.0
+                        proj_var.latitude_of_projection_origin = 90.0
+                        proj_var.standard_parallel = 70.0
+                        proj_var.crs_wkt = 'PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]'
+                    elif args.region == 'AA':
+                        proj_var = nc.groups['height_change'+ave].createVariable('polar_projection',np.int32,())
+                        proj_var.grid_mapping_name = 'Polar Stereographic'
+                        proj_var.straight_vertical_longitude_from_pole = 0.0
+                        proj_var.latitude_of_projection_origin = -90.0
+                        proj_var.standard_parallel = -71.0
+                        proj_var.crs_wkt = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
+                                       
+                    # dimension scales for each group
+                    for field in ['x','y','time']:
                         data = np.array(lags['file'][jj][dzg][dz_dict[field]])
+                        if field == 'time':    # convert to decimal days from 1/1/2018
+                            data = (data-2018.)*365.25
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                         make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=True)
                     
-                    for fld in ['cell_area','delta_h','delta_h_sigma','misfit_rms','misfit_scaled_rms']:  # fields that can be ave'd but not lagged
-                        if kk>0 and fld.startswith('misfit'):
+                    for fld in ['cell_area','delta_h','delta_h_sigma','ice_mask','data_count','misfit_rms','misfit_scaled_rms']:  # fields that can be ave'd but not lagged
+                        if kk>0 and (fld.startswith('misfit') or fld=='ice_mask' or fld=='data_count'): # not in ave'd groups
                             break
                         field = fld+ave
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                        if fld in ['cell_area','misfit_rms','misfit_scaled_rms']:
+                        if fld.startswith('delta_h'):  # fields with complicated name changes
+                            data = np.array(lags['file'][jj][dzg][dz_dict[field]])
+                        else:
                             data = np.array(lags['file'][jj][dzg][dz_dict[fld]])
-                            data = np.moveaxis(data,0,1)
-                            # fill zeros with invalids
-                            data[data==0.0] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max                        
-                        if fld in ['delta_h_sigma']:
-                            data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
-                            data = np.moveaxis(data,0,1)
-                        if fld in  ['delta_h']:
-                            data = np.array(lags['file'][jj][dzg][dzg])
-                            data = np.moveaxis(data,0,1)
+
+                        if fld == 'cell_area':
+                            data[data==0.0] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
                         make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
 
                 else:  # one of the lags
+                    field = 'time'+lags['vari'][jj]
+                    data = np.array(lags['file'][jj][dzg]['t'])
+                    # convert to decimal days from 1/1/2018
+                    data = (data-2018.)*365.25
+                    field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=True)
+                    
                     field = 'dhdt'+lags['vari'][jj]+ave
                     data = np.array(lags['file'][jj][dzg][dzg])
-                    data = np.moveaxis(data,0,1)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
-                    data = np.moveaxis(data,0,1)
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                         

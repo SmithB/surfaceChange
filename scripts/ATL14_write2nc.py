@@ -76,7 +76,6 @@ def ATL14_write2nc(args):
             dimensions = field_attrs[field]['dimensions'].split(',')
             dimensions = tuple(x.strip() for x in dimensions)
             data = np.array(FH['z0'][dz_dict[field]])
-            data = np.moveaxis(data,0,1)
             if field_attrs[field]['datatype'].startswith('int'):
                 fill_value = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
             elif field_attrs[field]['datatype'].startswith('float'):
