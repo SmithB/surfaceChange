@@ -38,7 +38,7 @@ def manual_edits(D):
         None (modifies input structure in place)
     '''
     bad=(D.rgt == 741)  & (D.cycle == 7)
-    D=D[~bad]
+    D.index(~bad)
     return
 
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
