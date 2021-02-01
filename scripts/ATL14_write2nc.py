@@ -13,7 +13,6 @@ import io
 import pointCollection as pc
 import importlib.resources
 from netCDF4 import Dataset
-import alphashape
 
 from ATL11.h5util import create_attribute
 

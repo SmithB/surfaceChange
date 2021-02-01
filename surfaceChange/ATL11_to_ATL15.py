@@ -28,7 +28,33 @@ def get_SRS_proj4(hemisphere):
     else:
         return '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
 
+def manual_edits(D):
+    '''
+    Remove known problematic data from a data structure
+    
+    inputs:
+        D: data structure
+    outputs:
+        None (modifies input structure in place)
+    '''
+    bad=(D.rgt == 741)  & (D.cycle == 7)
+    D=D[~bad]
+    return
+
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
+    '''
+    read ATL11 data from an index file
+    
+    inputs:
+        xy0 : 2-element iterable specifying the domain center
+        Wxy : Width of the domain
+        index_file : file made by pointCollection.geoindex pointing at ATL11 data
+        SRS_proj4: projection information for the data
+
+    output:
+        D: data structure
+    '''
+    
     field_dict_11={None:['latitude','longitude','delta_time',\
                         'h_corr','h_corr_sigma','h_corr_sigma_systematic', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
@@ -117,10 +143,13 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
         # catch empty data
         return None
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
+    
     return D
 
 def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
-    #read in the tide mask (for Antarctica) and apply dac and tide to ice-shelf elements
+    '''
+    read in the tide mask (for Antarctica) and apply dac and tide to ice-shelf elements
+    '''
     # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
     tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])     
     is_els=tide_mask.interp(D.x, D.y) > 0.5
@@ -235,6 +264,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     if data is None:
         print("No data present for region, returning.")
         return None
+    
+    # if any manual edits are needed, make them here:
+    manual_edits(data)
     
     if data.time.max()-data.time.min() < 80./365.:
         print("time span too short, returning.")
