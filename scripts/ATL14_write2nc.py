@@ -37,6 +37,42 @@ def ATL14_write2nc(args):
     print('output file:',fileout)
    
     with Dataset(fileout,'w',clobber=True) as nc:
+        nc.setncattr('GDAL_AREA_OR_POINT','Area')
+        nc.setncattr('Conventions','CF-1.6')
+
+        if args.region in ['AK','CN','CS','GL','IC','SV','RU']:
+            crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
+            crs_var.standard_name = 'Polar_Stereographic'
+            crs_var.grid_mapping_name = 'polar_stereographic'
+            crs_var.straight_vertical_longitude_from_pole = -45.0
+            crs_var.latitude_of_projection_origin = 90.0
+            crs_var.standard_parallel = 70.0
+            crs_var.scale_factor_at_projection_origin = 1.
+            crs_var.false_easting = 0.0
+            crs_var.false_northing = 0.0
+            crs_var.semi_major_axis = 6378.137
+            crs_var.semi_minor_axis = 6356.752
+            crs_var.inverse_flattening = 298.257223563
+            crs_var.spatial_epsg = '3413'
+            crs_var.spatial_ref = 'PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]'
+            crs_var.crs_wkt = ('PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]')
+        elif args.region == 'AA':
+            crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
+            crs_var.standard_name = 'Polar_Stereographic'
+            crs_var.grid_mapping_name = 'polar_stereographic'
+            crs_var.straight_vertical_longitude_from_pole = 0.0
+            crs_var.latitude_of_projection_origin = -90.0
+            crs_var.standard_parallel = -71.0
+            crs_var.scale_factor_at_projection_origin = 1.
+            crs_var.false_easting = 0.0
+            crs_var.false_northing = 0.0
+            crs_var.semi_major_axis = 6378.137
+            crs_var.semi_minor_axis = 6356.752
+            crs_var.inverse_flattening = 298.257223563
+            crs_var.spatial_epsg = '3031'
+            crs_var.spatial_ref = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
+            crs_var.crs_wkt = ('PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]')
+
         # get handle for input file with ROOT and height_change variables.
         FH = h5py.File(args.base_dir.rstrip('/')+'/z0.h5','r')
         if 'z0' not in FH:
@@ -60,9 +96,16 @@ def ATL14_write2nc(args):
             dimensions = field_attrs[field]['dimensions'].split(',')
             fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.array(FH['z0'][dz_dict[field]])
-            
+            if field == 'x':
+                x = data
+                xll = np.min(x)
+                dx = x[1]-x[0]
+            if field == 'y':
+                y = data
+                yll = np.max(y)
+                dy = y[0]-y[1]    
+                
             data = np.nan_to_num(data,nan=fill_value)
-
             nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
             dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
@@ -71,6 +114,12 @@ def ATL14_write2nc(args):
             dsetvar[:] = data
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
+            # add attributes for projection
+            if field == 'x':
+                dsetvar.standard_name = 'projection_x_coordinate'
+            if field == 'y':
+                dsetvar.standard_name = 'projection_y_coordinate'                
+        crs_var.GeoTransform = (xll,dx,0,yll,0,dy)
         
         for field in [item for item in field_names if item != 'x' and item != 'y']:
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
@@ -89,6 +138,7 @@ def ATL14_write2nc(args):
             dsetvar[:] = data
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
+            dsetvar.setncattr('grid_mapping','Polar_Stereographic')
                 
         FH.close()
    
