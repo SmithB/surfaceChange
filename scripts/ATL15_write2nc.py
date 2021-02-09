@@ -9,6 +9,7 @@ import numpy as np
 import  os, h5py,  csv
 import importlib.resources
 from netCDF4 import Dataset
+import matplotlib.pyplot as plt
 
 def ATL15_write2nc(args):
 
@@ -167,13 +168,17 @@ def ATL15_write2nc(args):
                         field = fld+ave
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                         if fld.startswith('delta_h'):  # fields with complicated name changes
-                            data = np.array(lags['file'][jj][dzg][dz_dict[field]])                            
+                            data = np.array(lags['file'][jj][dzg][dz_dict[field]]) 
+                            for tt in range(data.shape[-1]):
+                                data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
                         else:
                             data = np.array(lags['file'][jj][dzg][dz_dict[fld]])
                         if len(data.shape)==3:
-                            data = np.moveaxis(data,2,0)
+                            data = np.moveaxis(data,2,0)  # t, y, x
                         if fld == 'cell_area':
-                            data[data==0.0] = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+                            data[data==0.0] = np.nan 
+                            cell_area_mask = data # where cell_area is invalid, so are delta_h and dhdt variables.
+
                         make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
 
                 else:  # one of the lags
@@ -186,13 +191,17 @@ def ATL15_write2nc(args):
                     
                     field = 'dhdt'+lags['vari'][jj]+ave
                     data = np.array(lags['file'][jj][dzg][dzg])
-                    data = np.moveaxis(data,2,0)
+                    for tt in range(data.shape[-1]):
+                        data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
+                    data = np.moveaxis(data,2,0)  # t, y, x
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
-                    data = np.moveaxis(data,2,0)
+                    for tt in range(data.shape[-1]):
+                        data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
+                    data = np.moveaxis(data,2,0)  # t, y, x
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
                         
