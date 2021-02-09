@@ -90,25 +90,30 @@ def ATL14_write2nc(args):
         field_names = [row['field'] for row in reader if 'ROOT' in row['group']]
 
         # create dimensions
-        for field in ['x', 'y']: 
+        for field in ['x', 'y', 'cell_area']: 
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
+            dimensions = tuple(x.strip() for x in dimensions)
             fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.array(FH['z0'][dz_dict[field]])
+            if field == 'cell_area':
+                data[data==0.0] = np.nan 
+                cell_area_mask = data  # where cell_area is invalid, so are h and h_sigma
             if field == 'x':
+                nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
                 x = data
                 xll = np.min(x)
                 dx = x[1]-x[0]
             if field == 'y':
+                nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
                 y = data
                 yll = np.max(y)
                 dy = y[0]-y[1]    
                 
             data = np.nan_to_num(data,nan=fill_value)
-            nc.createDimension(field_attrs[field]['dimensions'],data.shape[0])
             dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
-                                        (field_attrs[field]['dimensions'],),
+                                        dimensions, #(field_attrs[field]['dimensions'],),
                                         fill_value=fill_value)
             dsetvar[:] = data
             for attr in attr_names:
@@ -119,12 +124,14 @@ def ATL14_write2nc(args):
             if field == 'y':
                 dsetvar.standard_name = 'projection_y_coordinate'                
         crs_var.GeoTransform = (xll,dx,0,yll,0,dy)
-        
-        for field in [item for item in field_names if item != 'x' and item != 'y']:
+                
+        for field in [item for item in field_names if item != 'x' and item != 'y' and item != 'cell_area']:
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
             dimensions = tuple(x.strip() for x in dimensions)
             data = np.array(FH['z0'][dz_dict[field]])
+            if field.startswith('h'):
+                data[np.isnan(cell_area_mask)] = np.nan
             if field_attrs[field]['datatype'].startswith('int'):
                 fill_value = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max
             elif field_attrs[field]['datatype'].startswith('float'):
