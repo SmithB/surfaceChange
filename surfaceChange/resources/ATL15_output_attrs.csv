@@ -1,69 +1,69 @@
 ﻿group,field,units,dimensions,datatype,coordinates,description,long_name,source
-height_change,time,days since 2018-01-01,Nt,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,
-height_change,time_lag1,days since 2018-01-01,Nt_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,
-height_change,time_lag4,days since 2018-01-01,Nt_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,
-height_change,time_lag8,days since 2018-01-01,Nt_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,
-height_change,x,meters,x,float64,x,"x coordinate of the 1-km cell centers, in projected coordinates",polar stereographic x at 1km,3.2
-height_change,y,meters,y,float64,y,"y coordinate of the 1-km cell centers, in projected coordinates",polar stereographic y at 1km,3.2
-height_change,cell_area,meters^2,"y, x",float32,"y,x","Ice-covered area of each 1x1 km grid cell, accounting for the area distortion in the polar-stereographic projections",cell area at 1 km,3.4
-height_change,ice_mask,counts,"y, x",int8,"y,x","Ice mask. 1: ice, 0: bare ground or ocean.",Ice mask at 1km,3.3.2
-height_change,data_count,counts,"Nt, y, x",float32,"time,y,x",Weighted number of data contributing to each node in the 1-km height-change grid,data count ,5.2.4.4
-height_change,misfit_rms,meters,"Nt, y, x",float32,"time,y,x",Misfit associated with each node in the 1-km height-change grid,rms misfit ,5.2.4.4
-height_change,misfit_scaled_rms,counts,"Nt, y, x",float32,"time,y,x",Scaled misfit associated with each node in the 1-km height-change grid,scaled rms misfit,5.2.4.4
-height_change,delta_h,meters,"Nt, y, x",float32,"time,y,x","Height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 1 km,3.4
-height_change,delta_h_sigma,meters,"Nt, y, x",float32,"time,y,x","Estimated error in height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 1 km,3.4
-height_change,dhdt_lag1,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",Quarterly height-change rate,quarterly height-change rate at 1 km,3.4
-height_change,dhdt_lag1_sigma,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",Estimated error in quarterly height-change rate,quarterly height-change rate uncertainty at 1 km,3.4
-height_change,dhdt_lag4,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",Annual height-change rate,annual height-change rate at 1 km,3.4
-height_change,dhdt_lag4_sigma,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",Estimated error in annual height-change rate,annual height-change rate uncertainty at 1 km,3.4
-height_change,dhdt_lag8,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",biennial height-change rate,biennial height-change rate at 1 km,3.4
-height_change,dhdt_lag8_sigma,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",Estimated error in biennial height-change rate,biennial height-change rate uncertainty at 1 km,3.4
+height_change,time,days since 2018-01-01,time,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,ATBD section 4.2
+height_change,time_lag1,days since 2018-01-01,time_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,ATBD section 4.2
+height_change,time_lag4,days since 2018-01-01,time_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,ATBD section 4.2
+height_change,time_lag8,days since 2018-01-01,time_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,ATBD section 4.2
+height_change,x,meters,x,float64,x,"x coordinate of the 1-km cell centers, in projected coordinates",polar stereographic x at 1km,ATBD section 3.2
+height_change,y,meters,y,float64,y,"y coordinate of the 1-km cell centers, in projected coordinates",polar stereographic y at 1km,ATBD section 3.2
+height_change,cell_area,meters^2,"y,x",float32,"y,x","Ice-covered area of each 1x1 km grid cell, accounting for the area distortion in the polar-stereographic projections",cell area at 1 km,ATBD section 3.4
+height_change,ice_mask,counts,"y,x",int8,"y,x","Ice mask. 1: ice, 0: bare ground or ocean.",Ice mask at 1km,ATBD section 3.3.2
+height_change,data_count,counts,"time,y,x",float32,"time,y,x",Weighted number of data contributing to each node in the 1-km height-change grid,data count ,ATBD section 5.2.4.4
+height_change,misfit_rms,meters,"time,y,x",float32,"time,y,x",Misfit associated with each node in the 1-km height-change grid,rms misfit ,ATBD section 5.2.4.4
+height_change,misfit_scaled_rms,counts,"time,y,x",float32,"time,y,x",Scaled misfit associated with each node in the 1-km height-change grid,scaled rms misfit,ATBD section 5.2.4.4
+height_change,delta_h,meters,"time,y,x",float32,"time,y,x","Height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 1 km,ATBD section 3.4
+height_change,delta_h_sigma,meters,"time,y,x",float32,"time,y,x","Estimated error in height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 1 km,ATBD section 3.4
+height_change,dhdt_lag1,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",Quarterly height-change rate,quarterly height-change rate at 1 km,ATBD section 3.4
+height_change,dhdt_lag1_sigma,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",Estimated error in quarterly height-change rate,quarterly height-change rate uncertainty at 1 km,ATBD section 3.4
+height_change,dhdt_lag4,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",Annual height-change rate,annual height-change rate at 1 km,ATBD section 3.4
+height_change,dhdt_lag4_sigma,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",Estimated error in annual height-change rate,annual height-change rate uncertainty at 1 km,ATBD section 3.4
+height_change,dhdt_lag8,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",biennial height-change rate,biennial height-change rate at 1 km,ATBD section 3.4
+height_change,dhdt_lag8_sigma,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",Estimated error in biennial height-change rate,biennial height-change rate uncertainty at 1 km,ATBD section 3.4
 ,,,,,,,,
-height_change_10km,time,days since 2018-01-01,Nt,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,
-height_change_10km,time_lag1,days since 2018-01-01,Nt_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,
-height_change_10km,time_lag4,days since 2018-01-01,Nt_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,
-height_change_10km,time_lag8,days since 2018-01-01,Nt_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,
-height_change_10km,x,meters,x,float64,x,"x coordinate of the 10-km cell centers, in projected coordinates",polar stereographic x at 10 km,3.2
-height_change_10km,y,meters,y,float64,y,"y coordinate of the 10-km cell centers, in projected coordinates",polar stereographic y at 10 km,3.2
-height_change_10km,cell_area_10km,meters^2,"y, x",float32,"y,x","Ice-covered area of each 10x10 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 10 km,3.4
-height_change_10km,delta_h_10km,meters,"Nt, y, x",float32,"time,y,x","10x10 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 10 km,3.4
-height_change_10km,delta_h_sigma_10km,meters,"Nt, y, x",float32,"time,y,x","Uncertainty in the 10x10 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 10 km,3.4
-height_change_10km,dhdt_lag1_10km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",10x10 km average quarterly height change rate,quarterly height-change rate at 10 km,3.4
-height_change_10km,dhdt_lag1_sigma_10km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",Uncertainty in the 10x10 km average quarterly height change rate,quarterly height-change rate uncertainty at 10 km,3.4
-height_change_10km,dhdt_lag4_10km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",10x10 km average annual height change rate,annual height-change rate at 10 km,3.4
-height_change_10km,dhdt_lag4_sigma_10km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",Uncertainty in the 10x10 km average annual height change rate,annual height-change rate uncertainty at 10 km,3.4
-height_change_10km,dhdt_lag8_10km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",10x10 km average biennial height change rate,biennial height-change rate at 10 km,3.4
-height_change_10km,dhdt_lag8_sigma_10km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",Uncertainty in the 10x10 km average biennial height change rate,biennial height-change rate uncertainty at 10 km,3.4
+height_change_10km,time,days since 2018-01-01,time,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,ATBD section 4.2
+height_change_10km,time_lag1,days since 2018-01-01,time_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,ATBD section 4.2
+height_change_10km,time_lag4,days since 2018-01-01,time_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,ATBD section 4.2
+height_change_10km,time_lag8,days since 2018-01-01,time_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,ATBD section 4.2
+height_change_10km,x,meters,x,float64,x,"x coordinate of the 10-km cell centers, in projected coordinates",polar stereographic x at 10 km,ATBD section 3.2
+height_change_10km,y,meters,y,float64,y,"y coordinate of the 10-km cell centers, in projected coordinates",polar stereographic y at 10 km,ATBD section 3.2
+height_change_10km,cell_area_10km,meters^2,"y,x",float32,"y,x","Ice-covered area of each 10x10 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 10 km,ATBD section 3.4
+height_change_10km,delta_h_10km,meters,"time,y,x",float32,"time,y,x","10x10 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 10 km,ATBD section 3.4
+height_change_10km,delta_h_sigma_10km,meters,"time,y,x",float32,"time,y,x","Uncertainty in the 10x10 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag1_10km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",10x10 km average quarterly height change rate,quarterly height-change rate at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag1_sigma_10km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",Uncertainty in the 10x10 km average quarterly height change rate,quarterly height-change rate uncertainty at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag4_10km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",10x10 km average annual height change rate,annual height-change rate at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag4_sigma_10km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",Uncertainty in the 10x10 km average annual height change rate,annual height-change rate uncertainty at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag8_10km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",10x10 km average biennial height change rate,biennial height-change rate at 10 km,ATBD section 3.4
+height_change_10km,dhdt_lag8_sigma_10km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",Uncertainty in the 10x10 km average biennial height change rate,biennial height-change rate uncertainty at 10 km,ATBD section 3.4
 ,,,,,,,,
-height_change_20km,time,days since 2018-01-01,Nt,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,
-height_change_20km,time_lag1,days since 2018-01-01,Nt_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,
-height_change_20km,time_lag4,days since 2018-01-01,Nt_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,
-height_change_20km,time_lag8,days since 2018-01-01,Nt_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,
-height_change_20km,x,meters,x,float64,x,"x coordinate of the 20-km cell centers, in projected coordinates",polar stereographic x at 20 km,3.2
-height_change_20km,y,meters,y,float64,y,"y coordinate of the 20-km cell centers, in projected coordinates",polar stereographic y at 20 km,3.2
-height_change_20km,cell_area_20km,meters^2,"y, x",float32,"y,x","Ice-covered area of each 20x20 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 20 km,3.4
-height_change_20km,delta_h_20km,meters,"Nt, y, x",float32,"time,y,x","20x20 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 20 km,3.4
-height_change_20km,delta_h_sigma_20km,meters,"Nt, y, x",float32,"time,y,x","Uncertainty in the 20x20 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 20 km,3.4
-height_change_20km,dhdt_lag1_20km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",20x20 km average quarterly height change rate,quarterly height-change rate at 20 km,3.4
-height_change_20km,dhdt_lag1_sigma_20km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",Uncertainty in the 20x20 km average quarterly height change rate,quarterly height-change rate uncertainty at 20 km,3.4
-height_change_20km,dhdt_lag4_20km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",20x20 km average annual height change rate,annual height-change rate at 20 km,3.4
-height_change_20km,dhdt_lag4_sigma_20km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",Uncertainty in the 20x20 km average annual height change rate,annual height-change rate uncertainty at 20 km,3.4
-height_change_20km,dhdt_lag8_20km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",20x20 km average biennial height change rate,biennial height-change rate at 20 km,3.4
-height_change_20km,dhdt_lag8_sigma_20km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",Uncertainty in the 20x20 km average biennial height change rate,biennial height-change rate uncertainty at 20 km,3.4
+height_change_20km,time,days since 2018-01-01,time,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,ATBD section 4.2
+height_change_20km,time_lag1,days since 2018-01-01,time_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,ATBD section 4.2
+height_change_20km,time_lag4,days since 2018-01-01,time_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,ATBD section 4.2
+height_change_20km,time_lag8,days since 2018-01-01,time_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,ATBD section 4.2
+height_change_20km,x,meters,x,float64,x,"x coordinate of the 20-km cell centers, in projected coordinates",polar stereographic x at 20 km,ATBD section 3.2
+height_change_20km,y,meters,y,float64,y,"y coordinate of the 20-km cell centers, in projected coordinates",polar stereographic y at 20 km,ATBD section 3.2
+height_change_20km,cell_area_20km,meters^2,"y,x",float32,"y,x","Ice-covered area of each 20x20 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 20 km,ATBD section 3.4
+height_change_20km,delta_h_20km,meters,"time,y,x",float32,"time,y,x","20x20 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change  at 20 km,ATBD section 3.4
+height_change_20km,delta_h_sigma_20km,meters,"time,y,x",float32,"time,y,x","Uncertainty in the 20x20 km average height change relative to the datum (Jan 1, 2020) surface",quarterly height change uncertainty at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag1_20km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",20x20 km average quarterly height change rate,quarterly height-change rate at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag1_sigma_20km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",Uncertainty in the 20x20 km average quarterly height change rate,quarterly height-change rate uncertainty at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag4_20km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",20x20 km average annual height change rate,annual height-change rate at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag4_sigma_20km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",Uncertainty in the 20x20 km average annual height change rate,annual height-change rate uncertainty at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag8_20km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",20x20 km average biennial height change rate,biennial height-change rate at 20 km,ATBD section 3.4
+height_change_20km,dhdt_lag8_sigma_20km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",Uncertainty in the 20x20 km average biennial height change rate,biennial height-change rate uncertainty at 20 km,ATBD section 3.4
 ,,,,,,,,
-height_change_40km,time,days since 2018-01-01,Nt,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,
-height_change_40km,time_lag1,days since 2018-01-01,Nt_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,
-height_change_40km,time_lag4,days since 2018-01-01,Nt_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,
-height_change_40km,time_lag8,days since 2018-01-01,Nt_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,
-height_change_40km,x,meters,x,float64,x,"x coordinate of the 40-km cell centers, in projected coordinates",polar stereographic x at 40 km,3.2
-height_change_40km,y,meters,y,float64,y,"y coordinate of the 40-km cell centers, in projected coordinates",polar stereographic y at 40 km,3.2
-height_change_40km,cell_area_40km,meters^2,"y, x",float32,"y,x","Ice-covered area of each 40x40 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 40 km,3.4
-height_change_40km,delta_h_40km,meters,"Nt, y, x",float32,"time,y,x","40x40 km average height change relative to the datum (Jan 1, 4040) surface",quarterly height change  at 40 km,3.4
-height_change_40km,delta_h_sigma_40km,meters,"Nt, y, x",float32,"time,y,x","Uncertainty in the 40x40 km average height change relative to the datum (Jan 1, 4040) surface",quarterly height change uncertainty at 40 km,3.4
-height_change_40km,dhdt_lag1_40km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",40x40 km average quarterly height change rate,quarterly height-change rate at 40 km,3.4
-height_change_40km,dhdt_lag1_sigma_40km,meters years^-1,"Nt_lag1, y, x",float32,"time_lag1,y,x",Uncertainty in the 40x40 km average quarterly height change rate,quarterly height-change rate uncertainty at 40 km,3.4
-height_change_40km,dhdt_lag4_40km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",40x40 km average annual height change rate,annual height-change rate at 40 km,3.4
-height_change_40km,dhdt_lag4_sigma_40km,meters years^-1,"Nt_lag4, y, x",float32,"time_lag4,y,x",Uncertainty in the 40x40 km average annual height change rate,annual height-change rate uncertainty at 40 km,3.4
-height_change_40km,dhdt_mission_40km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",40x40 km average biennial height change rate,biennial height-change rate at 40 km,3.4
-height_change_40km,dhdt_mission_sigma_40km,meters years^-1,"Nt_lag8, y, x",float32,"time_lag8,y,x",Uncertainty in the 40x40 km average biennial height change rate,biennial height-change rate uncertainty at 40 km,3.4
+height_change_40km,time,days since 2018-01-01,time,float64,time,"Time for each node, in days since 2018-01-01:T00.00.00 UTC",quarterly h(t) time,ATBD section 4.2
+height_change_40km,time_lag1,days since 2018-01-01,time_lag1,float64,time_lag1,"Time for the midpoint of each quarterly height-change rate, in days since 2018-01-01:T00.00.00 UTC",quarterly dh/dt time,ATBD section 4.2
+height_change_40km,time_lag4,days since 2018-01-01,time_lag4,float64,time_lag4,"Time for the midpoint of each annual height-change rate, in days since 2018-01-01:T00.00.00 UTC",annual dh/dt time,ATBD section 4.2
+height_change_40km,time_lag8,days since 2018-01-01,time_lag8,float64,time_lag8,"Time for the midpoint of each biennial height-change rate, in days since 2018-01-01:T00.00.00 UTC",biennial dh/dt time,ATBD section 4.2
+height_change_40km,x,meters,x,float64,x,"x coordinate of the 40-km cell centers, in projected coordinates",polar stereographic x at 40 km,ATBD section 3.2
+height_change_40km,y,meters,y,float64,y,"y coordinate of the 40-km cell centers, in projected coordinates",polar stereographic y at 40 km,ATBD section 3.2
+height_change_40km,cell_area_40km,meters^2,"y,x",float32,"y,x","Ice-covered area of each 40x40 km grid cell, accounting for the area distortion in the polar-stereographic projections",ice covered area at 40 km,ATBD section 3.4
+height_change_40km,delta_h_40km,meters,"time,y,x",float32,"time,y,x","40x40 km average height change relative to the datum (Jan 1, 4040) surface",quarterly height change  at 40 km,ATBD section 3.4
+height_change_40km,delta_h_sigma_40km,meters,"time,y,x",float32,"time,y,x","Uncertainty in the 40x40 km average height change relative to the datum (Jan 1, 4040) surface",quarterly height change uncertainty at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag1_40km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",40x40 km average quarterly height change rate,quarterly height-change rate at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag1_sigma_40km,meters years^-1,"time_lag1,y,x",float32,"time_lag1,y,x",Uncertainty in the 40x40 km average quarterly height change rate,quarterly height-change rate uncertainty at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag4_40km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",40x40 km average annual height change rate,annual height-change rate at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag4_sigma_40km,meters years^-1,"time_lag4,y,x",float32,"time_lag4,y,x",Uncertainty in the 40x40 km average annual height change rate,annual height-change rate uncertainty at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag8_40km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",40x40 km average biennial height change rate,biennial height-change rate at 40 km,ATBD section 3.4
+height_change_40km,dhdt_lag8_sigma_40km,meters years^-1,"time_lag8,y,x",float32,"time_lag8,y,x",Uncertainty in the 40x40 km average biennial height change rate,biennial height-change rate uncertainty at 40 km,ATBD section 3.4
 ,,,,,,,,

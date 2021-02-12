@@ -9,11 +9,11 @@ import numpy as np
 import  os, h5py,  csv
 import importlib.resources
 from netCDF4 import Dataset
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 def ATL15_write2nc(args):
 
-    def make_dataset(field,data,field_attrs,file_obj,group_obj,scale,nctype,dimScale=False):
+    def make_dataset(field,data,field_attrs,file_obj,group_obj,nctype,dimScale=False):
         dimensions = field_attrs[field]['dimensions'].split(',')
         dimensions = tuple(x.strip() for x in dimensions)
         if field_attrs[field]['datatype'].startswith('int'):
@@ -66,13 +66,13 @@ def ATL15_write2nc(args):
     nctype = {'float64':'f8',
               'float32':'f4',
               'int8':'i1'}
-    scale = {'Nt':'time',
-             'Nt_lag1':'time_lag1',
-             'Nt_lag4':'time_lag4',
-             'Nt_lag8':'time_lag8',
-             'x':'x',
-             'y':'y',
-             }
+#    scale = {'Nt':'time',
+#             'Nt_lag1':'time_lag1',
+#             'Nt_lag4':'time_lag4',
+#             'Nt_lag8':'time_lag8',
+#             'x':'x',
+#             'y':'y',
+#             }
 #    for avg in ['_10km', '_20km', '_40km']:
 #        for dim in ['x','y']:
 #            scale[f'N{dim}{avg}']=f'height_change{avg}/{dim}'
@@ -159,7 +159,7 @@ def ATL15_write2nc(args):
                         if field == 'time':    # convert to decimal days from 1/1/2018
                             data = (data-2018.)*365.25
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=True)
+                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],nctype,dimScale=True)
                     crs_var.GeoTransform = (xll,dx,0,yll,0,dy)
     
                     for fld in ['cell_area','delta_h','delta_h_sigma','ice_mask','data_count','misfit_rms','misfit_scaled_rms']:  # fields that can be ave'd but not lagged
@@ -179,7 +179,7 @@ def ATL15_write2nc(args):
                             data[data==0.0] = np.nan 
                             cell_area_mask = data # where cell_area is invalid, so are delta_h and dhdt variables.
 
-                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
+                        make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],nctype,dimScale=False)
 
                 else:  # one of the lags
                     field = 'time'+lags['vari'][jj]
@@ -187,7 +187,7 @@ def ATL15_write2nc(args):
                     # convert to decimal days from 1/1/2018
                     data = (data-2018.)*365.25
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=True)
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],nctype,dimScale=True)
                     
                     field = 'dhdt'+lags['vari'][jj]+ave
                     data = np.array(lags['file'][jj][dzg][dzg])
@@ -195,7 +195,7 @@ def ATL15_write2nc(args):
                         data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
                     data = np.moveaxis(data,2,0)  # t, y, x
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],nctype,dimScale=False)
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
@@ -203,7 +203,7 @@ def ATL15_write2nc(args):
                         data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
                     data = np.moveaxis(data,2,0)  # t, y, x
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],scale,nctype,dimScale=False)
+                    make_dataset(field,data,field_attrs,nc,nc.groups['height_change'+ave],nctype,dimScale=False)
                         
             for jj in range(len(lags['file'])):
                 try:
