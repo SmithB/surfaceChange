@@ -153,7 +153,7 @@ def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
     # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
     tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])     
     is_els=tide_mask.interp(D.x, D.y) > 0.5
-    print(f"\t\t{np.mean(is_els)*100} shelf data")
+    print(f"\t\t{np.mean(is_els)*100}% shelf data")
     if np.any(is_els.ravel()):
         D.tide_ocean = compute_tide_corrections(\
                 D.x, D.y, D.delta_time,                                                           
@@ -163,7 +163,9 @@ def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
     D.dac[is_els==0] = 0
     D.tide_ocean[~np.isfinite(D.tide_ocean)] = 0
     D.dac[~np.isfinite(D.dac)] = 0
+    print(np.nanstd(D.z))
     D.z -= (D.tide_ocean + D.dac)
+    print(np.nanstd(D.z))
     return D
 
 def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
@@ -267,6 +269,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     
     # if any manual edits are needed, make them here:
     manual_edits(data)
+    
+    if data is None or data.size < 10:
+        print("Fewer than 10 data points, returning")
+        return None
     
     if data.time.max()-data.time.min() < 80./365.:
         print("time span too short, returning.")
