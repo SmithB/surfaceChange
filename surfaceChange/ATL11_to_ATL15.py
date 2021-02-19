@@ -285,7 +285,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             return None
     
     # apply the tides if a directory has been provided
-    if tide_mask_file is not None:
+    # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
+    if tide_mask_file is not None and reread_dirs is None:
         apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
         
     if W_edit is not None:
@@ -397,7 +398,7 @@ def main(argv):
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
     parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
-    args=parser.parse_args()
+    args, unknown=parser.parse_known_args()
 
 
     args.grid_spacing = [np.float(temp) for temp in args.grid_spacing.split(',')]
