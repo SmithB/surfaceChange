@@ -152,7 +152,7 @@ def ATL14_write2nc(args):
     
 if __name__=='__main__':
     import argparse
-    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, fromfile_prefix_chars='@')
     parser.add_argument('-b','--base_dir', type=str, default=os.getcwd(), help='directory in which to look for mosaicked .h5 files')
     parser.add_argument('-rr','--region', type=str, help='2-letter region indicator \n'
                                                          '\t AA: Antarctica \n'

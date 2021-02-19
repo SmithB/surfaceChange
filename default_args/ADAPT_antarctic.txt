@@ -14,3 +14,7 @@
 --Hemisphere=-1
 --avg_scales=40000,20000,10000
 --max_iterations=6
+--cycles=0308
+--Release=001
+--version=01
+--region=AA

@@ -216,7 +216,7 @@ def ATL15_write2nc(args):
 
 if __name__=='__main__':
     import argparse
-    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,  fromfile_prefix_chars='@')
     parser.add_argument('-b','--base_dir', type=str, default=os.getcwd(), help='directory in which to look for mosaicked .h5 files')
     parser.add_argument('-rr','--region', type=str, help='2-letter region indicator \n'
                                                          '\t AA: Antarctica \n'
@@ -230,7 +230,7 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
-    args=parser.parse_args()
+    args, unknown = parser.parse_known_args()
     print('args',args)
     fileout = ATL15_write2nc(args)
 
