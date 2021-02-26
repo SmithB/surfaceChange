@@ -97,7 +97,8 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'tide_ocean': D11.tide_ocean,
            'dac': D11.dac,
            'delta_time': D11.delta_time,
-           'time':D11.delta_time/24/3600/365.25+2018})]
+           'time':D11.delta_time/24/3600/365.25+2018, 
+            'along_track':np.ones_like(D11.x, dtype=bool)})]
         if len(D11.ref_pt) == 0:
             continue
         # N.B.  D11 is getting indexed in this step, and it's leading to the warning in 
@@ -136,7 +137,8 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'tide_ocean':D_x.tide_ocean,
             'dac':D_x.dac,
             'delta_time':D_x.delta_time,
-            'time':D_x.delta_time/24/3600/365.25+2018})]
+            'time':D_x.delta_time/24/3600/365.25+2018, 
+            'along_track':np.zeros_like(D_x.x, dtype=bool)})]
     try:
         D=pc.data().from_list(D_list+XO_list).ravel_fields()
     except ValueError:
@@ -175,7 +177,7 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
     rho_target = N_target / W_domain**2
     ind_buffer=[]
     for bin0 in np.unique(ij_bin):
-        ii = np.flatnonzero(ij_bin==bin0)
+        ii = np.flatnonzero((ij_bin==bin0) & D.along_track)
         this_rho = len(ii) / (W_sub**2)
         #print(f'bin0={bin0}, this_rho={this_rho}, ratio={this_rho/rho_target}')
         if this_rho < rho_target:
@@ -189,9 +191,11 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
         # note that the np.arange() call can sometimes return a value of len(u_ref_pts) (?), so 
         # its output needs to be checked (!)
         sel_ind=np.arange(0, len(u_ref_pts), this_rho/rho_target).astype(int)
-        sel_ref_pts = u_ref_pts[sel_ind[sel_ind < len(u_ref_pts)]]       
-        isub = np.in1d(global_ref_pt, sel_ref_pts)
+        sel_ref_pts = u_ref_pts[sel_ind[sel_ind < len(u_ref_pts)]]
+        # keep the points matching the selected ref pt numbers
+        isub = np.in1d(global_ref_pt, sel_ref_pts) 
         ind_buffer.append(ii[isub])
+    ind_buffer.append(np.flatnonzero(D.along_track==0))
     D.index(np.concatenate(ind_buffer))
     
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
