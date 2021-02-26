@@ -11,7 +11,7 @@ import re
 import numpy as np
 import pointCollection as pc
 import os
-import matplotlib.pyplot as plt
+
 
 def make_sensor_dict(h5f):
     '''
@@ -103,6 +103,8 @@ def reread_data_from_fits(xy0, W, dir_list, single_file=False,  template='E%d_N%
                 #ID for geoindex bin
                 this_index['N']=len(data_list)-1+np.zeros_like(this_index['xyb0'], dtype=int)
                 index_list.append(this_index) 
+    if len(index_list)==0:
+        return None
     
     index={key:np.concatenate([item[key] for item in index_list]) for key in ['xyb0', 'dist0','N']}
     bins=np.unique(index['xyb0'])
@@ -118,13 +120,15 @@ def reread_data_from_fits(xy0, W, dir_list, single_file=False,  template='E%d_N%
     fields=data_list[0].fields
     return pc.data(fields=fields).from_list(data_sub_list)
 
-def main():
-    W=4e4
-    xy0=np.array([  360000., -2500000.])
-    thedir='/Volumes/ice2/ben/ATL14_test/Jako_d2zdt2=5000_d3z=0.00001_d2zdt2=1500_RACMO/'
-    plt.figure()
-    D1, s1=reread_data_from_fits(xy0, W, thedir, template='E%d_N%d.h5')    
-    plt.scatter(D1.x, D1.y, c=D1.sensor)
+#def main():
+#    import matplotlib.pyplot as plt
+#    W=4e4
+#    xy0=np.array([  360000., -2500000.])
+#    thedir='/Volumes/ice2/ben/ATL14_test/Jako_d2zdt2=5000_d3z=0.00001_d2zdt2=1500_RACMO/'
+#    
+#    plt.figure()
+#    D1, s1=reread_data_from_fits(xy0, W, thedir, template='E%d_N%d.h5')    
+#    plt.scatter(D1.x, D1.y, c=D1.sensor)
     
-if __name__=='__main__':
-    main()
+#if __name__=='__main__':
+#    main()
