@@ -28,9 +28,7 @@ def ATL15_write2nc(args):
         dsetvar = group_obj.createVariable(field,
                                            nctype[field_attrs[field]['datatype']],
                                            dimensions,
-                                           fill_value=fill_value,
-                                           zlib=True, 
-                                           complevel=9)
+                                           fill_value=fill_value, zlib=True)
             
         dsetvar[:] = data
         for attr in attr_names:
