@@ -6,7 +6,7 @@ Created on Thu Jun  6 21:00:02 2019
 @author: ben
 """
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 import pointCollection as pc
 import scipy.ndimage as snd
@@ -40,15 +40,18 @@ parser=argparse.ArgumentParser(description="generate a list of commands to run A
 parser.add_argument('step', type=str)
 parser.add_argument('defaults_file', type=str)
 parser.add_argument('--region_file', '-R', type=str)
+parser.add_argument('--skip_errors','-s', action='store_true')
 args=parser.parse_args()
-
-if len(sys.argv) > 2:
-    defaults_file=os.path.abspath(sys.argv[2])
 
 if args.step not in ['centers', 'edges','corners']:
     raise(ValueError('argument not known'))
     sys.exit()
 
+if args.skip_errors:
+    calc_errors=False
+else:
+    calc_errors=True
+    
 XR=None
 YR=None
 if args.region_file is not None:
@@ -69,16 +72,6 @@ with open(args.defaults_file,'r') as fh:
        if m is not None:
            defaults[m.group(1)]=m.group(2)
 
-Wxy=float(defaults['-W'])
-Hxy=Wxy/2
-
-
-temp=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
-
-mask_G=pad_mask_canvas(temp, 200)
-mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
-mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/1000)+1, 1], dtype='bool'))
-
 try:
     out_dir=defaults['-b']
 except keyError:
@@ -90,6 +83,37 @@ step_dir=out_dir+'/'+args.step
 if not os.path.isdir(step_dir):
     os.mkdir(step_dir)
 
+
+Wxy=float(defaults['-W'])
+Hxy=Wxy/2
+
+mask_base, mask_ext = os.path.splitext(defaults['--mask_file'])
+if mask_ext=='.tif': 
+    temp=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
+    mask_G=pad_mask_canvas(temp, 200)
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/1000)+1, 1], dtype='bool'))
+    x0=np.unique(np.round(mask_G.x/Hxy)*Hxy)
+    y0=np.unique(np.round(mask_G.y/Hxy)*Hxy)
+    x0, y0 = np.meshgrid(x0, y0)
+    xg=x0.ravel()
+    yg=y0.ravel()
+    good=(np.abs(mask_G.interp(xg, yg)-1)<0.1) & (np.mod(xg, Wxy)==0) & (np.mod(yg, Wxy)==0)
+
+elif mask_ext in ['.shp','.db']:
+    mask_G=pc.grid.data().from_geotif(mask_base+'_80km.tif')
+    xg, yg = np.meshgrid(mask_G.x, mask_G.y)
+    xg=xg.ravel()[mask_G.z.ravel()==1]
+    yg=yg.ravel()[mask_G.z.ravel()==1]
+    good=np.ones_like(xg, dtype=bool)
+
+if XR is not None:
+    good &= (xg>=XR[0]) & (xg <= XR[1]) & (yg > YR[0]) & (yg < YR[1])
+
+xg=xg[good]
+yg=yg[good]
+
+    
 if args.step=='centers':
     delta_x=[0]
     delta_y=[0]
@@ -102,22 +126,6 @@ elif args.step=='corners':
     delta_x=[-1, 1, -1, 1.]
     delta_y=[-1, -1, 1, 1.]
     symbol='ms'
-
-x0=np.unique(np.round(mask_G.x/Hxy)*Hxy)
-y0=np.unique(np.round(mask_G.y/Hxy)*Hxy)
-x0, y0 = np.meshgrid(x0, y0)
-
-xg=x0.ravel()
-yg=y0.ravel()
-good=(np.abs(mask_G.interp(xg, yg)-1)<0.1) & (np.mod(xg, Wxy)==0) & (np.mod(yg, Wxy)==0)
-
-if XR is not None:
-    good &= (xg>=XR[0]) & (xg <= XR[1]) & (yg > YR[0]) & (yg < YR[1])
-
-#mask_G.show()
-xg=xg[good]
-yg=yg[good]
-#[xg, yg]=pad_bins([xg, yg], 2, [Wxy/2, Wxy/2])
 
 queued=[];
 for xy0 in zip(xg, yg):
@@ -133,7 +141,9 @@ for xy0 in zip(xg, yg):
             #if np.sqrt((xy1[0]-320000.)**2 + (xy1[1]- -2520000.)**2) > 2.e5:
             #    continue
             #plt.plot(xy1[0], xy1[1],symbol)
-            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
-            print('source activate IS2; '+cmd +';'+cmd+' --calc_error_for_xy')
+            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, args.defaults_file)
+            if calc_errors:
+                cmd += ';'+cmd+' --calc_error_for_xy'
+            print('source activate IS2; '+cmd)
             
 
