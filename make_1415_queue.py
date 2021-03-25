@@ -41,6 +41,7 @@ parser.add_argument('step', type=str)
 parser.add_argument('defaults_file', type=str)
 parser.add_argument('--region_file', '-R', type=str)
 parser.add_argument('--skip_errors','-s', action='store_true')
+parser.add_argument('--tile_spacing', type=int)
 args=parser.parse_args()
 
 if args.step not in ['centers', 'edges','corners']:
@@ -84,7 +85,11 @@ if not os.path.isdir(step_dir):
     os.mkdir(step_dir)
 
 
-Wxy=float(defaults['-W'])
+if args.tile_spacing is None:
+    Wxy=float(defaults['-W'])
+else:
+    Wxy=args.tile_spacing
+
 Hxy=Wxy/2
 
 mask_base, mask_ext = os.path.splitext(defaults['--mask_file'])
