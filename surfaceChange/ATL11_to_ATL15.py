@@ -6,7 +6,7 @@ Created on Fri Nov 15 17:15:08 2019
 @author: ben
  """
 import os
-#os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
+os.environ["MKL_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
 os.environ["OPENBLAS_NUM_THREADS"]="1"  # multiple threads don't help that much and tend to eat resources
 
 import numpy as np
