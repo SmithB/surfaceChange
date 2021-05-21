@@ -18,8 +18,8 @@ import sys
 import h5py
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
-from pyTMD import compute_tide_corrections
-
+import pyTMD
+import scipy.optimize
 import pdb
 
 def get_SRS_proj4(hemisphere):
@@ -31,7 +31,7 @@ def get_SRS_proj4(hemisphere):
 def manual_edits(D):
     '''
     Remove known problematic data from a data structure
-    
+
     inputs:
         D: data structure
     outputs:
@@ -44,7 +44,7 @@ def manual_edits(D):
 def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
     '''
     read ATL11 data from an index file
-    
+
     inputs:
         xy0 : 2-element iterable specifying the domain center
         Wxy : Width of the domain
@@ -54,7 +54,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
     output:
         D: data structure
     '''
-    
+
     field_dict_11={None:['latitude','longitude','delta_time',\
                         'h_corr','h_corr_sigma','h_corr_sigma_systematic', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
@@ -97,11 +97,11 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'tide_ocean': D11.tide_ocean,
            'dac': D11.dac,
            'delta_time': D11.delta_time,
-           'time':D11.delta_time/24/3600/365.25+2018, 
+           'time':D11.delta_time/24/3600/365.25+2018,
             'along_track':np.ones_like(D11.x, dtype=bool)})]
         if len(D11.ref_pt) == 0:
             continue
-        # N.B.  D11 is getting indexed in this step, and it's leading to the warning in 
+        # N.B.  D11 is getting indexed in this step, and it's leading to the warning in
         # line 76.  Can fix by making crossover_data.from_h5 copy D11 on input
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
         if D_x is None:
@@ -109,7 +109,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
         # fit_quality D11 applies to all cycles, but is mapped only to some specific
         # cycle.
         temp=np.nanmax(D_x.fit_quality[:,:,0], axis=1)
-        for cycle in range(D_x.shape[1]): 
+        for cycle in range(D_x.shape[1]):
             D_x.fit_quality[:,cycle,1]=temp
 
         D_x.get_xy(proj4_string=SRS_proj4)
@@ -137,7 +137,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'tide_ocean':D_x.tide_ocean,
             'dac':D_x.dac,
             'delta_time':D_x.delta_time,
-            'time':D_x.delta_time/24/3600/365.25+2018, 
+            'time':D_x.delta_time/24/3600/365.25+2018,
             'along_track':np.zeros_like(D_x.x, dtype=bool)})]
     try:
         D=pc.data().from_list(D_list+XO_list).ravel_fields()
@@ -145,27 +145,69 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
         # catch empty data
         return None
     D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
-    
+
     return D
 
-def apply_tides(D, xy0, W, tide_mask_file, tide_directory):
+def apply_tides(D, xy0, W, tide_mask_file, tide_directory, adjust=True):
     '''
     read in the tide mask (for Antarctica) and apply dac and tide to ice-shelf elements
     '''
     # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
-    tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])     
+    tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     print(f"\t\t{np.mean(is_els)*100}% shelf data")
+    # extrapolate tide estimate beyond model bounds
     if np.any(is_els.ravel()):
-        D.tide_ocean = compute_tide_corrections(\
-                D.x, D.y, D.delta_time,                                                           
-                DIRECTORY=tide_directory, MODEL='CATS2008',                                            
-                EPOCH=(2018,1,1,0,0,0), TYPE='drift', TIME='utc', EPSG=3031)    
+        D.tide_ocean = pyTMD.compute_tide_corrections(
+                D.x, D.y, D.delta_time,
+                DIRECTORY=tide_directory, MODEL='CATS2008',
+                EPOCH=(2018,1,1,0,0,0), TYPE='drift', TIME='utc',
+                EPSG=3031, EXTRAPOLATE=adjust)
+    # use a bounded least-squares fit to adjust tides
+    if np.any(is_els.ravel()) and adjust:
+        # check if point is within model domain
+        inmodel = pyTMD.check_tide_points(D.x, D.y,
+            DIRECTORY=tide_directory, MODEL='CATS2008',
+            EPSG=3031)
+        # find where points have an extrapolated tide value
+        isextrapolated = np.nonzero(np.isfinite(D.tide_ocean) &
+            np.logical_not(inmodel))
+        # calculate temporal fit of tide points with model phases
+        # only for reference points that are extrapolated
+        for ref_pt in np.unique(D.ref_pt[isextrapolated]):
+            ii, = np.nonzero(D.ref_pt == ref_pt)
+            # reduce delta time and ocean amplitude to ref_pt
+            t = np.copy(D.delta_time[ii])
+            tide = np.copy(D.tide_ocean[ii])
+            # reduce DAC-corrected height to ref_pt
+            dac = np.copy(D.dac[ii])
+            dac[~np.isfinite(D.dac)] = 0.0
+            h = D.z[ii] - dac
+            # create design matrix
+            p0 = np.ones_like(t)
+            DMAT = np.transpose([p0,t,tide])
+            # tuple for parameter bounds (lower and upper)
+            # average height must be between minimum and maximum of h
+            # elevation change rate must be between a "reasonable" range
+            # output tidal amplitudes must be between 0 and 1 of model
+            lb,ub = ([np.min(h),-10.0,0.0],[np.max(h),10.0,1.0])
+            # use linear least-squares with bounds on the variables
+            try:
+                results = scipy.optimize.lsq_linear(DMAT, h,
+                    bounds=(lb,ub))
+            except:
+                continue
+            else:
+                H,dH,adj = np.copy(results['x'])
+            # multiply tides by adjustments
+            D.tide_ocean[ii] *= adj
+    # replace invalid tide and dac values
     D.tide_ocean[is_els==0] = 0
     D.dac[is_els==0] = 0
     D.tide_ocean[~np.isfinite(D.tide_ocean)] = 0
     D.dac[~np.isfinite(D.dac)] = 0
     print(np.nanstd(D.z))
+    # apply tide and dac to heights
     D.z -= (D.tide_ocean + D.dac)
     print(np.nanstd(D.z))
     return D
@@ -182,22 +224,22 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
         #print(f'bin0={bin0}, this_rho={this_rho}, ratio={this_rho/rho_target}')
         if this_rho < rho_target:
             # if there aren't too many points in this bin, continue
-            ind_buffer += [ii] 
+            ind_buffer += [ii]
             continue
         # make a global reference point number (equal to the number of ref pts in an orbit * rgt + ref_pt)
         global_ref_pt=D.ref_pt[ii]+40130000/20*D.rgt[ii]
         u_ref_pts = np.unique(global_ref_pt)
         # select a subset of the global reference points (this skips the right number of points)
-        # note that the np.arange() call can sometimes return a value of len(u_ref_pts) (?), so 
+        # note that the np.arange() call can sometimes return a value of len(u_ref_pts) (?), so
         # its output needs to be checked (!)
         sel_ind=np.arange(0, len(u_ref_pts), this_rho/rho_target).astype(int)
         sel_ref_pts = u_ref_pts[sel_ind[sel_ind < len(u_ref_pts)]]
         # keep the points matching the selected ref pt numbers
-        isub = np.in1d(global_ref_pt, sel_ref_pts) 
+        isub = np.in1d(global_ref_pt, sel_ref_pts)
         ind_buffer.append(ii[isub])
     ind_buffer.append(np.flatnonzero(D.along_track==0))
     D.index(np.concatenate(ind_buffer))
-    
+
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
@@ -218,12 +260,12 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             calc_error_file=None):
     '''
     Function to generate DEMs and height-change maps based on ATL11 surface height data.
-    
+
     Inputs:
         xy0: 2 elements specifying the center of the domain
         Wxy: (float) Width of the domain
         ATL11_index: (string) Index file (from pointCollection.geoIndex) for ATL11 data
-        E_RMS: (dict) dictionary specifying constraints on derivatives of the ice-sheet surface.  
+        E_RMS: (dict) dictionary specifying constraints on derivatives of the ice-sheet surface.
         t_span: (2-element list of floats) starting and ending times for the output grids (in years CE)
         spacing: (dict) dictionary specifying the grid spacing for z0, dz, and dt
         dzdt_lags: (list) lags over which elevation change rates and errors will be calculated
@@ -244,7 +286,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         calc_error_file: (string) Output file for which errors will be calculated.
     '''
     SRS_proj4=get_SRS_proj4(hemisphere)
- 
+
     E_RMS0={'d2z0_dx2':200000./3000/3000, 'd3z_dx2dt':3000./3000/3000, 'd2z_dxdt':3000/3000, 'd2z_dt2':5000}
     E_RMS0.update(E_RMS)
 
@@ -266,45 +308,45 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         N0=data.size
         decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
         print(f'decimated {N0} to {data.size}')
-    
+
     if data is None:
         print("No data present for region, returning.")
         return None
-    
+
     # if any manual edits are needed, make them here:
     manual_edits(data)
-    
+
     if data is None or data.size < 10:
         print("Fewer than 10 data points, returning")
         return None
-    
+
     if data.time.max()-data.time.min() < 80./365.:
         print("time span too short, returning.")
         return None
-    
+
     if edge_pad is not None:
         ctr_dist = np.max(np.abs(data.x-xy0[0]), np.abs(data.y-xy0[1]))
         in_ctr = ctr_dist < Wxy/2 - edge_pad
         if np.sum(in_ctr) < 50:
             return None
-    
+
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if tide_mask_file is not None and reread_dirs is None:
         apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
-        
+
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
         # data that are far from the center of this file cannot be eliminated by
         # the three-sigma edit
         data.assign({'editable':  (np.abs(data.x-xy0[0])<=W_edit/2) & (np.abs(data.y-xy0[1])<=W_edit/2)})
-    
+
     # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
-                     mask_file=mask_file, mask_scale={0:10, 1:1}, 
+                     mask_file=mask_file, mask_scale={0:10, 1:1},
                      error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
     return S
@@ -363,7 +405,7 @@ def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None, grid
                 h5f['/bias/sigma/'+key][...]=S['E']['sigma_bias'][key]
             else:
                 h5f.create_dataset('/bias/sigma/'+key, data=S['E']['sigma_bias'][key])
-       
+
     return
 
 def main(argv):
@@ -412,7 +454,7 @@ def main(argv):
 
     spacing={'z0':args.grid_spacing[0], 'dz':args.grid_spacing[1], 'dt':args.grid_spacing[2]}
     E_RMS={'d2z0_dx2':args.E_d2z0dx2, 'd3z_dx2dt':args.E_d3zdx2dt, 'd2z_dxdt':args.E_d3zdx2dt*args.data_gap_scale,  'd2z_dt2':args.E_d2zdt2}
-    
+
     reread_dirs=None
     dest_dir=args.base_directory
     W_edit=args.Width/2
@@ -439,13 +481,13 @@ def main(argv):
         if not os.path.isfile(args.out_name):
             print(f"{args.out_name} not found, returning")
             return
-        
+
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
         if not os.path.isfile(args.out_name):
             print(f"{args.out_name} not found, returning")
             return
-        
+
     if args.error_res_scale is not None:
         if args.calc_error_file is not None:
             for ii, key in enumerate(['z0','dz']):
@@ -475,7 +517,7 @@ def main(argv):
 
     if S is None:
         return
-    
+
     if args.calc_error_file is None and 'm' in S and len(S['m'].keys()) > 0:
         # if this isn't an error-calculation run, save the gridded fit data to the output file
         save_fit_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
