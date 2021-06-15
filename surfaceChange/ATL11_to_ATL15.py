@@ -22,11 +22,11 @@ import pyTMD
 import scipy.optimize
 import pdb
 
-def get_SRS_proj4(hemisphere):
+def get_SRS_info(hemisphere):
     if hemisphere==1:
-        return '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
+        return '+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs', 3413
     else:
-        return '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
+        return '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs', 3031
 
 def manual_edits(D):
     '''
@@ -38,10 +38,16 @@ def manual_edits(D):
         None (modifies input structure in place)
     '''
     bad=(D.rgt == 741)  & (D.cycle == 7)
+
+    #N.B.  This fixes a glitch on the east coast of Greenland:
+    if np.max(np.abs(np.array([np.mean(D.x), np.mean(D.y)])-np.array([480000, -1360000])))<1.e5:
+        print("EDITING TRACK 1092 CYCLE 1")
+        bad |= ((D.rgt==1092) & (D.cycle==1))
+
     D.index(~bad)
     return
 
-def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
+def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
     '''
     read ATL11 data from an index file
 
@@ -71,8 +77,13 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
     XO_list=[]
     for D11 in D11_list:
         D11.get_xy(proj4_string=SRS_proj4)
-        sigma_corr=np.sqrt((7.5*np.abs(np.median(D11.n_slope)))**2+\
-                           (7.5*np.abs(np.median(D11.e_slope)))**2+0.03**2)
+        # select the subset of the data within the domain
+        D11.index((np.abs(D11.x[:,0]-xy0[0]) <= Wxy/2) &\
+                 (np.abs(D11.y[:,0]-xy0[1]) <= Wxy/2))
+        if D11.size==0:
+            continue
+        sigma_corr=np.sqrt((sigma_geo*np.abs(np.median(D11.n_slope)))**2+\
+                           (sigma_geo*np.abs(np.median(D11.e_slope)))**2+0.03**2)
         # fix for early ATL11 versions that had some zero error estimates.
         bad=np.any(D11.h_corr_sigma==0, axis=1)
         D11.h_corr_sigma[bad,:]=np.NaN
@@ -98,7 +109,11 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'dac': D11.dac,
            'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018,
+           'n_slope':D11.n_slope,
+           'e_slope':D11.e_slope,
+           'time':D11.delta_time/24/3600/365.25+2018,
            'along_track':np.ones_like(D11.x, dtype=bool)})]
+
         if len(D11.ref_pt) == 0:
             continue
         # N.B.  D11 is getting indexed in this step, and it's leading to the warning in
@@ -119,7 +134,13 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             # Pull out only cycles 1 and 2
             temp=getattr(D_x, field)[:,0:2,1]
             setattr(D_x, field, temp.ravel()[good])
+        # select the subset of the data within the domain
+        D_x.index((np.abs(D_x.x-xy0[0]) <= Wxy/2) &\
+                 (np.abs(D_x.y-xy0[1]) <= Wxy/2))
+        if D_x.size==0:
+            continue
 
+        #N.B.  Check whether n_slope and e_slope are set correctly.
         zero = np.zeros_like(D_x.h_corr)
         blank = zero+np.NaN
         XO_list += [pc.data().from_dict({'z':D_x.h_corr,
@@ -137,24 +158,33 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
             'tide_ocean':D_x.tide_ocean,
             'dac':D_x.dac,
             'delta_time':D_x.delta_time,
+            'n_slope':D_x.n_slope,
+            'e_slope':D_x.e_slope,
             'time':D_x.delta_time/24/3600/365.25+2018,
             'along_track':np.zeros_like(D_x.x, dtype=bool)})]
     try:
         D=pc.data().from_list(D_list+XO_list).ravel_fields()
+        D.index(np.isfinite(D.z))
     except ValueError:
         # catch empty data
         return None
-    D.index( ( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
+
+    D.index(( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
 
     return D
 
-def apply_tides(D, xy0, W,
-            tide_mask_file,
-            tide_directory,
-            hemisphere=1,
-            extrapolate=True,
-            cutoff=200,
-            adjust=False):
+def apply_tides(D, xy0, W, 
+                tide_mask_file=None, 
+                tide_mask=None,
+                tide_directory=None, 
+                tide_model=None,
+                extrapolate=True,
+                cutoff=20,
+                adjust=False, 
+                EPSG=None, 
+                verbose=False):
+
+
     '''
     read in the tide mask, calculate ocean tide elevations, and
     apply dynamic atmospheric correction (dac) and tide to ice-shelf elements
@@ -163,13 +193,13 @@ def apply_tides(D, xy0, W,
         D: data structure
         xy0: 2-element iterable specifying the domain center
         W: Width of the domain
-        tide_mask_file: geotiff file for masking to ice shelf elements
-        tide_directory: path to tide models
-
+        
+        
     keyword arguments:
-        hemisphere: the hemisphere of data structure
-            1 for northern hemisphere
-            -1 for southern hemisphere
+        tide_mask_file: geotiff file for masking to ice shelf elements
+        tide_mask: pc.grid.data() object containing the tide mask (alternative to tide_mask_file)
+        tide_directory: path to tide models
+        tide_model: the name of the tide model to use
         extrapolate: extrapolate outside tide model bounds with nearest-neighbors
         cutoff: extrapolation cutoff in kilometers
         adjust: use bounded least-squares fit to adjust tides for extrapolated points
@@ -177,34 +207,28 @@ def apply_tides(D, xy0, W,
     output:
         D: data structure corrected for ocean tides and dac
     '''
-    # projection and model for Greenland and Antarctic ice shelves
-    if (hemisphere == 1):
-        # Greenland 1km model from ESR
-        TIDE_MODEL='Gr1km-v2'
-        # EPSG 3413: NSIDC Sea Ice Polar Stereographic North, WGS84
-        EPSG=3413
-    else:
-        # Circum-Antarctic Tidal Simulation (2008) from ESR
-        TIDE_MODEL='CATS2008'
-        # EPSG 3031: Polar Stereographic South, WGS84
-        EPSG=3031
-    # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
-    tide_mask = pc.grid.data().from_geotif(tide_mask_file,
-        bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+    
+    # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
+    if tide_mask_file is not None as tide_mask_data is None:
+        tide_mask = pc.grid.data().from_geotif(tide_mask_file,
+                        bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
     is_els=tide_mask.interp(D.x, D.y) > 0.5
-    print(f"\t\t{np.mean(is_els)*100}% shelf data")
+    if verbose:
+        print(f"\t\t{np.mean(is_els)*100}% shelf data")
+
     # extrapolate tide estimate beyond model bounds
     # extrapolation cutoff is in kilometers
     if np.any(is_els.ravel()):
         D.tide_ocean = pyTMD.compute_tide_corrections(
                 D.x, D.y, D.delta_time,
-                DIRECTORY=tide_directory, MODEL=TIDE_MODEL,
+                DIRECTORY=tide_directory, MODEL=tide_model,
                 EPOCH=(2018,1,1,0,0,0), TYPE='drift', TIME='utc',
                 EPSG=EPSG, EXTRAPOLATE=extrapolate, CUTOFF=cutoff)
     # use a bounded least-squares fit to adjust tides
     # this is a purely empirical correction that
     # does not take into account ice shelf flexure physics
     if np.any(is_els.ravel()) and adjust:
+        D.assign({'tide_adj_scale': np.zeros_like(D.x)})
         # check if point is within model domain
         inmodel = pyTMD.check_tide_points(D.x, D.y,
             DIRECTORY=tide_directory, MODEL=TIDE_MODEL,
@@ -242,16 +266,30 @@ def apply_tides(D, xy0, W,
                 H,dH,adj = np.copy(results['x'])
             # multiply tides by adjustments
             D.tide_ocean[ii] *= adj
+            D.tide_adj_scale[ii] = adj
     # replace invalid tide and dac values
     D.tide_ocean[is_els==0] = 0
     D.dac[is_els==0] = 0
     D.tide_ocean[~np.isfinite(D.tide_ocean)] = 0
     D.dac[~np.isfinite(D.dac)] = 0
-    print(np.nanstd(D.z))
     # apply tide and dac to heights
     D.z -= (D.tide_ocean + D.dac)
-    print(np.nanstd(D.z))
     return D
+
+def read_bedmachine_greenland(mask_file, xy0, Wxy):
+    from xarray import open_dataset
+    x0=np.arange(xy0[0]-0.6*Wxy, xy0[0]+0.6*Wxy,100)
+    y0=np.arange(xy0[1]-0.6*Wxy, xy0[1]+0.6*Wxy,100)
+    with md as open_dataset(mask_file,'r'):
+        mask_data=pc.grid.data().from_dict({'x':x0,'y':y0,
+            'z':np.array(md['mask'].interp(x0, y0))})
+    mask_data.z(~np.isfinite(mask_data.z))=0
+    # ice-shelves in the mask are represented by 3
+    tide_mask_data=pc.grid.data().from_dict({'x':x0,'y':y0,
+            'z':np.abs(mask_data.z-3)<0.5})
+    # land ice is either 2 (grounded ice) or 3 (shelf ice)
+    mask_data.z = ((mask_data.z-3)<0.5) | ((mask_data.z-2)<0.5)
+    return mask_data, tide_mask_data
 
 def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
     # reduce the data density to a target value in small bins
@@ -284,8 +322,10 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
+            sigma_geo=6.5,\
             dzdt_lags=[1, 4],\
-            hemisphere=1, reference_epoch=None, reread_dirs=None, \
+            hemisphere=1, reference_epoch=None,\
+            region=None, reread_dirs=None, \
             data_file=None, \
             max_iterations=5, \
             N_subset=8,  \
@@ -296,6 +336,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             tide_mask_file=None,\
             tide_directory=None,\
             tide_adjustment=False,\
+            tide_model=None,\
             avg_scales=None,\
             edge_pad=None,\
             error_res_scale=None,\
@@ -328,7 +369,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         error_res_scale: (float) If errors are calculated, the grid resolution will be coarsened by this factor
         calc_error_file: (string) Output file for which errors will be calculated.
     '''
-    SRS_proj4=get_SRS_proj4(hemisphere)
+    SRS_proj4, EPSG=get_SRS_info(hemisphere)
 
     E_RMS0={'d2z0_dx2':200000./3000/3000, 'd3z_dx2dt':3000./3000/3000, 'd2z_dxdt':3000/3000, 'd2z_dt2':5000}
     E_RMS0.update(E_RMS)
@@ -338,7 +379,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
 
     # figure out where to get the data
     if data_file is not None:
-        data=pc.data().from_h5(data_file, group='/')
+        data=pc.data().from_h5(data_file, group='data')
     elif calc_error_file is not None:
         data=pc.data().from_h5(calc_error_file, group='data')
         max_iterations=0
@@ -347,7 +388,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     elif reread_dirs is not None:
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
-        data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4)
+        data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
         N0=data.size
         decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
         print(f'decimated {N0} to {data.size}')
@@ -376,8 +417,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if tide_mask_file is not None and reread_dirs is None:
-        apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory,
-            hemisphere=hemisphere, extrapolate=True, adjust=tide_adjustment)
+        
+        apply_tides(data, xy0, Wxy, tide_mask=tide_mask, tide_directory=tide_directory,
+            EPSG=EPSG, extrapolate=False, adjust=false)
 
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
@@ -385,12 +427,30 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         # the three-sigma edit
         data.assign({'editable':  (np.abs(data.x-xy0[0])<=W_edit/2) & (np.abs(data.y-xy0[1])<=W_edit/2)})
 
+
+    # work out which mask to use based on the region
+    mask_data=None
+    if region is not None:
+        if region=='AA':
+            mask_data=pc.grid.data().from_geotif(mask_file, bounds=[xy0[0]+np.array([-1.2, 1.2])*Wxy/2, xy0[1]+np.array([-1.2, 1.2])*Wxy/2])
+            import scipy.ndimage as snd
+            mask_data.z=snd.binary_erosion(snd.binary_erosion(mask_data.z, np.ones([1,3])), np.ones([3,1]))
+            mask_file=None
+        if region=='GL' and mask_file.endswith('.nc'):
+            mask_data, tide_mask_data = read_bedmachine_greenland(mask_file, xy0, Wxy)
+
+
+    # apply the tides if a directory has been provided
+    # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
+    if (tide_mask_file is not None or tide_mask_data is not None) and reread_dirs is None and calc_error_file is None and data_file is None:
+        apply_tides(data, xy0, Wxy, tide_mask_file=tide_mask_file, tide_mask_data=tide_mask_data, tide_directory, tide_model=tide_model)
+
     # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
-                     mask_file=mask_file, mask_scale={0:10, 1:1},
+                     mask_file=mask_file, mask_data=mask_data, mask_scale={0:10, 1:1},
                      error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
     return S
@@ -458,8 +518,9 @@ def main(argv):
         if (arg[0] == '-') and arg[1].isdigit(): argv[i] = ' ' + arg
 
     import argparse
-    parser=argparse.ArgumentParser(description="function to fit icebridge data with a smooth elevation-change model", \
-                                   fromfile_prefix_chars="@")
+    parser=argparse.ArgumentParser(\
+        description="function to fit icebridge data with a smooth elevation-change model", \
+        fromfile_prefix_chars="@")
     parser.add_argument('xy0', type=float, nargs=2, help="fit center location")
     parser.add_argument('--ATL11_index', type=str, required=True, help="ATL11 index file")
     parser.add_argument('--Width','-W',  type=float, help="Width of grid")
@@ -471,10 +532,12 @@ def main(argv):
     parser.add_argument('--centers', action="store_true")
     parser.add_argument('--edges', action="store_true")
     parser.add_argument('--corners', action="store_true")
+    parser.add_argument('--W_edit', type=int)
     parser.add_argument('--E_d2zdt2', type=float, default=5000)
     parser.add_argument('--E_d2z0dx2', type=float, default=0.02)
     parser.add_argument('--E_d3zdx2dt', type=float, default=0.0003)
     parser.add_argument('--data_gap_scale', type=float,  default=2500)
+    parser.add_argument('--sigma_geo', type=float,  default=6.5)
     parser.add_argument('--dzdt_lags', type=str, default='1,4', help='lags for which to calculate dz/dt, comma-separated list, no spaces')
     parser.add_argument('--avg_scales', type=str, default='10000,40000', help='scales at which to report average errors, comma-separated list, no spaces')
     parser.add_argument('--N_subset', type=int, default=None, help="number of pieces into which to divide the domain for (cheap) editing iterations.")
@@ -484,13 +547,14 @@ def main(argv):
     parser.add_argument('--tide_mask_file', type=str)
     parser.add_argument('--tide_directory', type=str)
     parser.add_argument('--tide_adjustment', action="store_true", help="Use bounded least-squares fit to adjust tides")
+    parser.add_argument('--tide_model', type=str)
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--data_file', type=str, help='read data from this file alone')
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
     parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
+    parser.add_argument('--region', type=str, help='region for which calculation is being performed')
     args, unknown=parser.parse_known_args()
-
 
     args.grid_spacing = [np.float(temp) for temp in args.grid_spacing.split(',')]
     args.dzdt_lags = [np.int(temp) for temp in args.dzdt_lags.split(',')]
@@ -502,7 +566,11 @@ def main(argv):
 
     reread_dirs=None
     dest_dir=args.base_directory
-    W_edit=args.Width/2
+    if args.W_edit is None:
+        W_edit=args.Width/2
+    else:
+        W_edit=args.W_edit
+
     if args.centers:
         dest_dir += '/centers'
         W_edit=None
@@ -545,15 +613,19 @@ def main(argv):
 
     S=ATL11_to_ATL15(args.xy0, ATL11_index=args.ATL11_index,
            Wxy=args.Width, E_RMS=E_RMS, t_span=args.time_span, spacing=spacing, \
+           sigma_geo=args.sigma_geo, \
            hemisphere=args.Hemisphere, reread_dirs=reread_dirs, \
            data_file=args.data_file, \
            out_name=args.out_name,
            dzdt_lags=args.dzdt_lags, \
            N_subset=args.N_subset,\
            mask_file=args.mask_file, \
+           region=args.region, \
            tide_mask_file=args.tide_mask_file, \
            tide_directory=args.tide_directory, \
            tide_adjustment=args.tide_adjustment, \
+           tide_model=args.tide_model, \
+>>>>>>> surfaceChange/ATL11_to_ATL15.py: added sigma_geo, tide_model as options, added Greenland Bedmachine mask
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
            W_edit=W_edit,\
