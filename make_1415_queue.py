@@ -27,6 +27,7 @@ def pad_mask_canvas(D, N):
     z1[rows[0]:rows[-1]+1,cols[0]:cols[-1]+1]=D.z.astype('bool')
     return pc.grid.data().from_dict({'x':x1, 'y':y1,'z':z1})
 
+
 # define the script
 prog = "/home/besmith4/git_repos/surfaceChange/surfaceChange/ATL11_to_ATL15.py"
 
@@ -36,16 +37,16 @@ for i, arg in enumerate(argv):
     if (arg[0] == '-') and arg[1].isdigit(): argv[i] = ' ' + arg
 
 
-parser=argparse.ArgumentParser(description="generate a list of commands to run ATL11_to_ATL15")
+parser = argparse.ArgumentParser(description="generate a list of commands to run ATL11_to_ATL15")
 parser.add_argument('step', type=str)
-parser.add_argument('defaults_file', type=str)
+parser.add_argument('defaults_files', nargs='+', type=str)
 parser.add_argument('--region_file', '-R', type=str)
 parser.add_argument('--skip_errors','-s', action='store_true')
 parser.add_argument('--tile_spacing', type=int)
-args=parser.parse_args()
+args = parser.parse_args()
 
 if args.step not in ['centers', 'edges','corners']:
-    raise(ValueError('argument not known'))
+    raise(ValueError('step argument not known: must be one of : centers, edges, corners'))
     sys.exit()
 
 if args.skip_errors:
@@ -66,25 +67,48 @@ if args.region_file is not None:
     YR=temp['YR']
 
 defaults_re=re.compile('(.*)\s*=\s*(.*)')
+
+# read in all defaults files (must be of syntax --key=value or -key=value)
 defaults={}
-with open(args.defaults_file,'r') as fh:
-   for line in fh:
-       m=defaults_re.search(line)
-       if m is not None:
-           defaults[m.group(1)]=m.group(2)
 
-try:
-    out_dir=defaults['-b']
-except keyError:
-    out_dir=defaults['--base_dir']
+for defaults_file in args.defaults_files:
+    with open(defaults_file,'r') as fh:
+        for line in fh:
+            m=defaults_re.search(line)
+            if m is not None:
+                defaults[m.group(1)]=m.group(2)
 
-if not os.path.isdir(out_dir):
-    os.mkdir(out_dir)
-step_dir=out_dir+'/'+args.step
-if not os.path.isdir(step_dir):
-    os.mkdir(step_dir)
+# check if enough parameters have been specified to allow a run
+required_keys_present=True
+for key in ['--ATL14_root', '--region', '--Release','--Hemisphere']:
+    if key not in defaults:
+        print(f"make_1415_queue.py:\n\tError: required key {key} not in defaults files")
+        required_keys_present=False
+if not required_keys_present:
+    sys.exit(1)
 
+if defaults['--Hemisphere']==1 or defaults['--Hemisphere']=="1":
+    hemisphere_name='north'
+else:
+    hemisphere_name='south'
 
+# figure out what directories we need to make
+release_dir = os.path.join(defaults['--ATL14_root'], "rel"+defaults['--Release'])
+hemi_dir=os.path.join(release_dir, hemisphere_name)
+region_dir=os.path.join(hemi_dir, defaults['--region'])
+step_dir=os.path.join(region_dir, args.step)
+
+for this in [release_dir, hemi_dir, region_dir, step_dir]:
+    if not os.path.isdir(this):
+        os.mkdir(this)
+
+# write out the composite defaults file
+defaults_file=os.path.join(region_dir, f'input_args_{defaults["--region"]}.txt')
+with open(defaults_file, 'w') as fh:
+    for key, val in defaults.items():
+        fh.write(f'{key}={val}\n')
+
+# generate the center locations
 if args.tile_spacing is None:
     Wxy=float(defaults['-W'])
 else:
@@ -92,9 +116,16 @@ else:
 
 Hxy=Wxy/2
 
-mask_base, mask_ext = os.path.splitext(defaults['--mask_file'])
-if mask_ext=='.tif': 
-    temp=pc.grid.data().from_geotif(defaults['--mask_file'].replace('100m','1km'))
+mask_file=os.path.join(defaults['--mask_dir'], defaults['--mask_file'])
+
+mask_base, mask_ext = os.path.splitext(mask_file)
+if mask_ext in ('.tif', 'nc'):
+    if mask_ext=='.tif':
+        tif_1km=mask_file.replace('100m','1km').replace('125m','1km')
+        temp=pc.grid.data().from_geotif(tif_1km)
+    elif mask_ext=='.nc':
+        temp=read_bedmachine_greenland(mask_file)
+        
     mask_G=pad_mask_canvas(temp, 200)
     mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
     mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/1000)+1, 1], dtype='bool'))
@@ -104,13 +135,14 @@ if mask_ext=='.tif':
     xg=x0.ravel()
     yg=y0.ravel()
     good=(np.abs(mask_G.interp(xg, yg)-1)<0.1) & (np.mod(xg, Wxy)==0) & (np.mod(yg, Wxy)==0)
-
 elif mask_ext in ['.shp','.db']:
+    # require that 
     mask_G=pc.grid.data().from_geotif(mask_base+'_80km.tif')
     xg, yg = np.meshgrid(mask_G.x, mask_G.y)
     xg=xg.ravel()[mask_G.z.ravel()==1]
     yg=yg.ravel()[mask_G.z.ravel()==1]
     good=np.ones_like(xg, dtype=bool)
+
 
 if XR is not None:
     good &= (xg>=XR[0]) & (xg <= XR[1]) & (yg > YR[0]) & (yg < YR[1])
@@ -140,13 +172,9 @@ for xy0 in zip(xg, yg):
             continue
         else:
             queued.append(tuple(xy1))
-        out_file=out_dir+'/%s//E%d_N%d.h5' % (args.step, xy1[0]/1000, xy1[1]/1000)  
+        out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
         if not os.path.isfile(out_file):
-            #plt.plot(xy0[0], xy0[1],'r*')
-            #if np.sqrt((xy1[0]-320000.)**2 + (xy1[1]- -2520000.)**2) > 2.e5:
-            #    continue
-            #plt.plot(xy1[0], xy1[1],symbol)
-            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, args.defaults_file)
+            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
             if calc_errors:
                 cmd += ';'+cmd+' --calc_error_for_xy'
             print('source activate IS2; '+cmd)
