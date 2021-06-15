@@ -98,7 +98,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
            'dac': D11.dac,
            'delta_time': D11.delta_time,
            'time':D11.delta_time/24/3600/365.25+2018,
-            'along_track':np.ones_like(D11.x, dtype=bool)})]
+           'along_track':np.ones_like(D11.x, dtype=bool)})]
         if len(D11.ref_pt) == 0:
             continue
         # N.B.  D11 is getting indexed in this step, and it's leading to the warning in
@@ -148,30 +148,71 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4):
 
     return D
 
-def apply_tides(D, xy0, W, tide_mask_file, tide_directory, adjust=True):
+def apply_tides(D, xy0, W,
+            tide_mask_file,
+            tide_directory,
+            hemisphere=1,
+            extrapolate=True,
+            cutoff=200,
+            adjust=False):
     '''
-    read in the tide mask (for Antarctica) and apply dac and tide to ice-shelf elements
+    read in the tide mask, calculate ocean tide elevations, and
+    apply dynamic atmospheric correction (dac) and tide to ice-shelf elements
+
+    inputs:
+        D: data structure
+        xy0: 2-element iterable specifying the domain center
+        W: Width of the domain
+        tide_mask_file: geotiff file for masking to ice shelf elements
+        tide_directory: path to tide models
+
+    keyword arguments:
+        hemisphere: the hemisphere of data structure
+            1 for northern hemisphere
+            -1 for southern hemisphere
+        extrapolate: extrapolate outside tide model bounds with nearest-neighbors
+        cutoff: extrapolation cutoff in kilometers
+        adjust: use bounded least-squares fit to adjust tides for extrapolated points
+
+    output:
+        D: data structure corrected for ocean tides and dac
     '''
+    # projection and model for Greenland and Antarctic ice shelves
+    if (hemisphere == 1):
+        # Greenland 1km model from ESR
+        TIDE_MODEL='Gr1km-v2'
+        # EPSG 3413: NSIDC Sea Ice Polar Stereographic North, WGS84
+        EPSG=3413
+    else:
+        # Circum-Antarctic Tidal Simulation (2008) from ESR
+        TIDE_MODEL='CATS2008'
+        # EPSG 3031: Polar Stereographic South, WGS84
+        EPSG=3031
     # the tide mask should be 1 for non-grounded points (ice shelves?), zero otherwise
-    tide_mask = pc.grid.data().from_geotif(tide_mask_file, bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+    tide_mask = pc.grid.data().from_geotif(tide_mask_file,
+        bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     print(f"\t\t{np.mean(is_els)*100}% shelf data")
     # extrapolate tide estimate beyond model bounds
+    # extrapolation cutoff is in kilometers
     if np.any(is_els.ravel()):
         D.tide_ocean = pyTMD.compute_tide_corrections(
                 D.x, D.y, D.delta_time,
-                DIRECTORY=tide_directory, MODEL='CATS2008',
+                DIRECTORY=tide_directory, MODEL=TIDE_MODEL,
                 EPOCH=(2018,1,1,0,0,0), TYPE='drift', TIME='utc',
-                EPSG=3031, EXTRAPOLATE=adjust)
+                EPSG=EPSG, EXTRAPOLATE=extrapolate, CUTOFF=cutoff)
     # use a bounded least-squares fit to adjust tides
+    # this is a purely empirical correction that
+    # does not take into account ice shelf flexure physics
     if np.any(is_els.ravel()) and adjust:
         # check if point is within model domain
         inmodel = pyTMD.check_tide_points(D.x, D.y,
-            DIRECTORY=tide_directory, MODEL='CATS2008',
-            EPSG=3031)
+            DIRECTORY=tide_directory, MODEL=TIDE_MODEL,
+            EPSG=EPSG)
         # find where points have an extrapolated tide value
+        # only calculate adjustments for ice shelf values
         isextrapolated = np.nonzero(np.isfinite(D.tide_ocean) &
-            np.logical_not(inmodel))
+            np.logical_not(inmodel) & is_els.ravel())
         # calculate temporal fit of tide points with model phases
         # only for reference points that are extrapolated
         for ref_pt in np.unique(D.ref_pt[isextrapolated]):
@@ -254,6 +295,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             mask_file=None, \
             tide_mask_file=None,\
             tide_directory=None,\
+            tide_adjustment=False,\
             avg_scales=None,\
             edge_pad=None,\
             error_res_scale=None,\
@@ -281,6 +323,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         mask_file: (string) File specifying areas for which data should be used and strong constraints should be applied
         tide_mask_file: (string)  File specifying the areas for which the tide model should be calculated
         tide_directory: (string)  Directory containing the tide model data
+        tide_adjustment: (bool)  Use bounded least-squares fit to adjust tides for extrapolated points
         avg_scales: (list of floats) scales over which the output grids will be averaged and errors will be calculated
         error_res_scale: (float) If errors are calculated, the grid resolution will be coarsened by this factor
         calc_error_file: (string) Output file for which errors will be calculated.
@@ -333,7 +376,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if tide_mask_file is not None and reread_dirs is None:
-        apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory)
+        apply_tides(data, xy0, Wxy, tide_mask_file, tide_directory,
+            hemisphere=hemisphere, extrapolate=True, adjust=tide_adjustment)
 
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
@@ -439,6 +483,7 @@ def main(argv):
     parser.add_argument('--mask_file', type=str)
     parser.add_argument('--tide_mask_file', type=str)
     parser.add_argument('--tide_directory', type=str)
+    parser.add_argument('--tide_adjustment', action="store_true", help="Use bounded least-squares fit to adjust tides")
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--data_file', type=str, help='read data from this file alone')
     parser.add_argument('--calc_error_file','-c', type=str, help='file containing data for which errors will be calculated')
@@ -508,6 +553,7 @@ def main(argv):
            mask_file=args.mask_file, \
            tide_mask_file=args.tide_mask_file, \
            tide_directory=args.tide_directory, \
+           tide_adjustment=args.tide_adjustment, \
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
            W_edit=W_edit,\
