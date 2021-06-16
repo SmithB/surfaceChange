@@ -1,4 +1,4 @@
---ATL11_index=/att/nobackup/project/icesat-2/ATL14_processing/south/ATL11_rel004/index/GeoIndex.h5
+--ATL11_index=/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/south/index/GeoIndex.h5
 --mask_file=Antarctic/bedmap2_thickness_gt_50_plus_sio_shelves.tif
 --tide_mask_file=Antarctic/scripps_antarctica_IceShelves1km_v1.tif
 --Hemisphere=-1
