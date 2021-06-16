@@ -625,7 +625,6 @@ def main(argv):
            tide_directory=args.tide_directory, \
            tide_adjustment=args.tide_adjustment, \
            tide_model=args.tide_model, \
->>>>>>> surfaceChange/ATL11_to_ATL15.py: added sigma_geo, tide_model as options, added Greenland Bedmachine mask
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
            W_edit=W_edit,\
