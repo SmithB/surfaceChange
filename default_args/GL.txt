@@ -1,5 +1,7 @@
 --ATL11_index=/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north/index/GeoIndex.h5
---tide_mask_file=Arctic/
---mask_file=Arctic/GimpIceMask_100m_edited.tif
+--tide_mask=Arctic/BedMachineGreenland-2021-04-20_shelf_125m.tif
+--tide_model=Gr1km-v2
+--mask_file=Arctic/BedMachineGreenland-2021-04-20_ice_125m.tif
+
 --Hemisphere=1
 
