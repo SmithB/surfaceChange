@@ -28,8 +28,10 @@ def pad_mask_canvas(D, N):
     return pc.grid.data().from_dict({'x':x1, 'y':y1,'z':z1})
 
 
-# define the script
-prog = "/home/besmith4/git_repos/surfaceChange/surfaceChange/ATL11_to_ATL15.py"
+# define the script.  This is assumed to be in the path of the environment
+# that is running 
+prog = "ATL11_to_ATL15.py"
+environment = "IS2"
 
 # account for a bug in argparse that misinterprets negative agruents
 argv=sys.argv
@@ -80,12 +82,19 @@ for defaults_file in args.defaults_files:
 
 # check if enough parameters have been specified to allow a run
 required_keys_present=True
-for key in ['--ATL14_root', '--region', '--Release','--Hemisphere']:
+for key in ['--ATL14_root', '--region', '--Release','--Hemisphere', '--mask_file']:
     if key not in defaults:
         print(f"make_1415_queue.py:\n\tError: required key {key} not in defaults files")
         required_keys_present=False
 if not required_keys_present:
     sys.exit(1)
+
+if '--mask_dir' in defaults:
+    defaults['--mask_file']=os.path.join(defaults['--mask_dir'], defaults['--mask_file'])   
+    if '--tide_mask_file' in defaults and not os.path.isfile(defaults['--tide_mask_file']):
+        defaults['--tide_mask_file']=os.path.join(defaults['--mask_dir'], defaults['--tide_mask_file'])
+    defaults.pop('--mask_dir', None)
+    
 
 if defaults['--Hemisphere']==1 or defaults['--Hemisphere']=="1":
     hemisphere_name='north'
@@ -96,17 +105,22 @@ else:
 release_dir = os.path.join(defaults['--ATL14_root'], "rel"+defaults['--Release'])
 hemi_dir=os.path.join(release_dir, hemisphere_name)
 region_dir=os.path.join(hemi_dir, defaults['--region'])
-step_dir=os.path.join(region_dir, args.step)
 
-for this in [release_dir, hemi_dir, region_dir, step_dir]:
+for this in [release_dir, hemi_dir, region_dir]:
     if not os.path.isdir(this):
-        os.mkdir(this)
+        print("missing directory: "+ this)
+        sys.exit(1)
 
 # write out the composite defaults file
 defaults_file=os.path.join(region_dir, f'input_args_{defaults["--region"]}.txt')
 with open(defaults_file, 'w') as fh:
     for key, val in defaults.items():
         fh.write(f'{key}={val}\n')
+    fh.write(f"-b={region_dir}\n")
+
+step_dir=os.path.join(region_dir, args.step)
+if not os.path.isdir(step_dir):
+    os.mkdir(step_dir)
 
 # generate the center locations
 if args.tile_spacing is None:
@@ -116,15 +130,11 @@ else:
 
 Hxy=Wxy/2
 
-mask_file=os.path.join(defaults['--mask_dir'], defaults['--mask_file'])
-
-mask_base, mask_ext = os.path.splitext(mask_file)
-if mask_ext in ('.tif', 'nc'):
-    if mask_ext=='.tif':
-        tif_1km=mask_file.replace('100m','1km').replace('125m','1km')
-        temp=pc.grid.data().from_geotif(tif_1km)
-    elif mask_ext=='.nc':
-        temp=read_bedmachine_greenland(mask_file)
+mask_base, mask_ext = os.path.splitext(defaults['--mask_file'])
+if mask_ext in ('.tif'):
+    
+    tif_1km=defaults['--mask_file'].replace('100m','1km').replace('125m','1km')
+    temp=pc.grid.data().from_geotif(tif_1km)
         
     mask_G=pad_mask_canvas(temp, 200)
     mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
@@ -136,7 +146,10 @@ if mask_ext in ('.tif', 'nc'):
     yg=y0.ravel()
     good=(np.abs(mask_G.interp(xg, yg)-1)<0.1) & (np.mod(xg, Wxy)==0) & (np.mod(yg, Wxy)==0)
 elif mask_ext in ['.shp','.db']:
-    # require that 
+    # the mask is a shape.
+    # We require that an 80-km grid based on the mask exists
+    if not os.path.isfile(mask_base+'_80km.tif'):
+        raise(OSError(f"gridded mask file {mask_base+'_80km.tif'} not found"))
     mask_G=pc.grid.data().from_geotif(mask_base+'_80km.tif')
     xg, yg = np.meshgrid(mask_G.x, mask_G.y)
     xg=xg.ravel()[mask_G.z.ravel()==1]
@@ -150,33 +163,33 @@ if XR is not None:
 xg=xg[good]
 yg=yg[good]
 
-    
 if args.step=='centers':
     delta_x=[0]
     delta_y=[0]
-    symbol='r*'
 elif args.step=='edges':
     delta_x=[-1, 0, 0, 1.]
     delta_y=[0, -1, 1, 0.]
-    symbol='bo'
 elif args.step=='corners':
     delta_x=[-1, 1, -1, 1.]
     delta_y=[-1, -1, 1, 1.]
-    symbol='ms'
 
 queued=[];
-for xy0 in zip(xg, yg):
-    for dx, dy in zip(delta_x, delta_y):  
-        xy1=np.array(xy0)+np.array([dx, dy])*Hxy
-        if tuple(xy1) in queued:
-            continue
-        else:
-            queued.append(tuple(xy1))
-        out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
-        if not os.path.isfile(out_file):
-            cmd='python3 %s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
-            if calc_errors:
-                cmd += ';'+cmd+' --calc_error_for_xy'
-            print('source activate IS2; '+cmd)
-            
+queue_file=f"1415_queue_{defaults['--region']}_{args.step}.txt"
+
+with open(queue_file,'w') as qh:
+    for xy0 in zip(xg, yg):
+        for dx, dy in zip(delta_x, delta_y):  
+            xy1=np.array(xy0)+np.array([dx, dy])*Hxy
+            if tuple(xy1) in queued:
+                continue
+            else:
+                queued.append(tuple(xy1))
+            out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
+            if not os.path.isfile(out_file):
+                cmd='%s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
+                if calc_errors:
+                    cmd += '; '+cmd+' --calc_error_for_xy'
+                qh.write(f'source activate {environment}; '+cmd+'\n')
+print("Wrote commands to "+queue_file)
+
 
