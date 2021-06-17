@@ -33,17 +33,20 @@ for hemi in 'north' 'south'; do
         the_digit=1
     fi
 
-    hemi_dir=$ATL14_dir/$hemi
-    ATL11_sub=$hemi_dir/ATL11_$version
+    hemi_dir=$ATL14_dir/$AT$hemi
+    
+    ATL11_sub=$ATL14_dir/ATL11_$version
+    hemi_dir=$ATL11_sub/$hemi
     index_dir=$ATL11_sub/index
 
-    [ -d $hemi_dir ] || mkdir $hemi_dir
+    
     [ -d $ATL11_sub ] || mkdir $ATL11_sub
+    [ -d $hemi_dir ] || mkdir $hemi_dir
     [ -d $index_dir ] || mkdir $index_dir 
 
     for file in `ls $ATL11_source/ATL11_????$the_digit?_????_???_??.h5`; do
 	base=`basename $file`
-	[ -L $ATL11_sub/$base ] || ln -s $file $ATL11_sub
+	[ -L $hemi_dir/$base ] || ln -s $file $hemi_dir
 	
 	index_file=$index_dir"/"$base
 	[ -f $index_file ] && continue
