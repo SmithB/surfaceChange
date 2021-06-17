@@ -175,7 +175,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
 
 def apply_tides(D, xy0, W, 
                 tide_mask_file=None, 
-                tide_mask=None,
+                tide_mask_data=None,
                 tide_directory=None, 
                 tide_model=None,
                 extrapolate=True,
@@ -197,7 +197,7 @@ def apply_tides(D, xy0, W,
         
     keyword arguments:
         tide_mask_file: geotiff file for masking to ice shelf elements
-        tide_mask: pc.grid.data() object containing the tide mask (alternative to tide_mask_file)
+        tide_mask_data: pc.grid.data() object containing the tide mask (alternative to tide_mask_file)
         tide_directory: path to tide models
         tide_model: the name of the tide model to use
         extrapolate: extrapolate outside tide model bounds with nearest-neighbors
@@ -209,13 +209,13 @@ def apply_tides(D, xy0, W,
     '''
     
     # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
-    if tide_mask_file is not None as tide_mask_data is None:
+    if tide_mask_file is not None and tide_mask_data is None:
         tide_mask = pc.grid.data().from_geotif(tide_mask_file,
                         bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     if verbose:
         print(f"\t\t{np.mean(is_els)*100}% shelf data")
-
+    print([tide_directory, tide_model])
     # extrapolate tide estimate beyond model bounds
     # extrapolation cutoff is in kilometers
     if np.any(is_els.ravel()):
@@ -280,10 +280,10 @@ def read_bedmachine_greenland(mask_file, xy0, Wxy):
     from xarray import open_dataset
     x0=np.arange(xy0[0]-0.6*Wxy, xy0[0]+0.6*Wxy,100)
     y0=np.arange(xy0[1]-0.6*Wxy, xy0[1]+0.6*Wxy,100)
-    with md as open_dataset(mask_file,'r'):
+    with  open_dataset(mask_file,'r') as md:
         mask_data=pc.grid.data().from_dict({'x':x0,'y':y0,
             'z':np.array(md['mask'].interp(x0, y0))})
-    mask_data.z(~np.isfinite(mask_data.z))=0
+    mask_data.z[~np.isfinite(mask_data.z)]=0
     # ice-shelves in the mask are represented by 3
     tide_mask_data=pc.grid.data().from_dict({'x':x0,'y':y0,
             'z':np.abs(mask_data.z-3)<0.5})
@@ -414,13 +414,6 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         if np.sum(in_ctr) < 50:
             return None
 
-    # apply the tides if a directory has been provided
-    # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
-    if tide_mask_file is not None and reread_dirs is None:
-        
-        apply_tides(data, xy0, Wxy, tide_mask=tide_mask, tide_directory=tide_directory,
-            EPSG=EPSG, extrapolate=False, adjust=false)
-
     if W_edit is not None:
         # this is used for data that we are rereading from a set of other files.
         # data that are far from the center of this file cannot be eliminated by
@@ -429,6 +422,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
 
 
     # work out which mask to use based on the region
+    tide_mask_data=None
     mask_data=None
     if region is not None:
         if region=='AA':
@@ -443,7 +437,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if (tide_mask_file is not None or tide_mask_data is not None) and reread_dirs is None and calc_error_file is None and data_file is None:
-        apply_tides(data, xy0, Wxy, tide_mask_file=tide_mask_file, tide_mask_data=tide_mask_data, tide_directory, tide_model=tide_model)
+        apply_tides(data, xy0, Wxy, tide_mask_file=tide_mask_file, tide_mask_data=tide_mask_data, tide_directory=tide_directory, tide_model=tide_model, EPSG=EPSG)
 
     # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
