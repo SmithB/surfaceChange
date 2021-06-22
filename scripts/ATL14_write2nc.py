@@ -166,7 +166,7 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
-    args=parser.parse_args()
+    args, _=parser.parse_known_args()
     print('args',args)
     fileout = ATL14_write2nc(args)
 
