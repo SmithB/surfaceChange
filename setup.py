@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 
 # list of all scripts to be included with package
-scripts = [os.path.join('scripts',f) for f in os.listdir('scripts')] +\
+scripts = [os.path.join('scripts',f) for f in os.listdir('scripts') if not (f[0]=='.' or f[-1]=='~')] +\
     [os.path.join('surfaceChange', f) for f in ['ATL11_to_ATL15.py']]
 
 setup(
