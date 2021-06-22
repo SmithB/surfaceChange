@@ -251,39 +251,46 @@ def apply_tides(D, xy0, W,
         # only for reference points that are extrapolated
         for ref_pt in u_ref_pt:
             # indices for along-track coordinates for reference point
-            iref, = np.nonzero((global_ref_pt == ref_pt) & D.along_track)
+            iref, = np.nonzero((global_ref_pt == ref_pt) &
+                np.isfinite(D.tide_ocean) & D.along_track)
             # calculate distance from central point
             x = np.median(D.x[iref])
             y = np.median(D.y[iref])
             dist = np.sqrt((D.x - x)**2 + (D.y - y)**2)
-            # local slope
-            e_slope = np.median(D.e_slope[iref])
-            n_slope = np.median(D.n_slope[iref])
             # indices of nearby points (include nearby crossover points)
-            ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 50)) &
+            ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 1e3)) &
                 np.isfinite(D.tide_ocean))
             # check if minimum number of values for fit
-            if (len(ii) < 4):
+            if (len(ii) < 6):
                 # continue to next global reference point
                 continue
             # reduce time and ocean amplitude to global reference point
             t = np.copy(D.time[ii])
             tide = np.copy(D.tide_ocean[ii])
-            # correct heights for ocean variability and local slope
+            # correct heights for ocean variability
             dac = np.copy(D.dac[ii])
             dac[~np.isfinite(dac)] = 0.0
-            # reduce corrected heights to global reference point
-            h = D.z[ii] - dac - e_slope*(D.x[ii]-x) - n_slope*(D.y[ii]-y)
+            # reduce DAC-corrected heights to global reference point
+            h = D.z[ii] - dac
+            # calculate min and max of surface slopes for global reference point
+            e_slope_min = np.nanmin(D.e_slope[ii])
+            e_slope_max = np.nanmax(D.e_slope[ii])
+            n_slope_min = np.nanmin(D.n_slope[ii])
+            n_slope_max = np.nanmax(D.n_slope[ii])
             # use linear least-squares with bounds on the variables
             # create design matrix
             p0 = np.ones_like(t)
-            p1 = t - t.mean()
-            DMAT = np.transpose([p0,p1,tide])
+            p1 = t - np.median(t)
+            x1 = D.x[ii] - x
+            y1 = D.y[ii] - y
+            DMAT = np.transpose([p0,p1,x1,y1,tide])
             # tuple for parameter bounds (lower and upper)
             # average height must be between minimum and maximum of h
             # elevation change rate must be between a "reasonable" range
+            # surface slopes must be within the range of ATL11 slopes
             # output tidal amplitudes must be between 0 and 1 of model
-            lb,ub = ([np.min(h),-10.0,0.0],[np.max(h),10.0,1.0])
+            lb = [np.nanmin(h),-10.0,e_slope_min,n_slope_min,0.0]
+            ub = [np.nanmax(h),10.0,e_slope_max,n_slope_max,1.0]
             try:
                 # attempt bounded linear least squares
                 results = scipy.optimize.lsq_linear(DMAT, h,
@@ -296,7 +303,7 @@ def apply_tides(D, xy0, W,
                 # and use original tide values
                 continue
             else:
-                H,dH,adj = np.copy(results['x'])
+                H,dHdt,dHdx,dHdy,adj = np.copy(results['x'])
             # multiply tides by adjustments
             D.tide_ocean[ii] *= adj
             D.tide_adj_scale[ii] = adj
