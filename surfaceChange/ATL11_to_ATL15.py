@@ -176,15 +176,15 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
 
     return D
 
-def apply_tides(D, xy0, W, 
-                tide_mask_file=None, 
+def apply_tides(D, xy0, W,
+                tide_mask_file=None,
                 tide_mask_data=None,
-                tide_directory=None, 
+                tide_directory=None,
                 tide_model=None,
                 tide_adjustment=False,
                 extrapolate=True,
                 cutoff=20,
-                EPSG=None, 
+                EPSG=None,
                 verbose=False):
 
 
@@ -196,8 +196,8 @@ def apply_tides(D, xy0, W,
         D: data structure
         xy0: 2-element iterable specifying the domain center
         W: Width of the domain
-        
-        
+
+
     keyword arguments:
         tide_mask_file: geotiff file for masking to ice shelf elements
         tide_mask_data: pc.grid.data() object containing the tide mask (alternative to tide_mask_file)
@@ -210,7 +210,7 @@ def apply_tides(D, xy0, W,
     output:
         D: data structure corrected for ocean tides and dac
     '''
-    
+
     # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
     if tide_mask_file is not None and tide_mask_data is None:
         tide_mask = pc.grid.data().from_geotif(tide_mask_file,
@@ -241,7 +241,7 @@ def apply_tides(D, xy0, W,
         # find where points have an extrapolated tide value
         # only calculate adjustments for ice shelf values
         isextrapolated, = np.nonzero(np.isfinite(D.tide_ocean) &
-            np.logical_not(inmodel))
+            np.logical_not(inmodel) & D.along_track)
         # make a global reference point number combining ref_pt, rgt and pair
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
@@ -253,10 +253,14 @@ def apply_tides(D, xy0, W,
             # indices for along-track coordinates for reference point
             iref, = np.nonzero((global_ref_pt == ref_pt) & D.along_track)
             # calculate distance from central point
-            x,y = np.median(D.x[iref]),np.median(D.y[iref])
+            x = np.median(D.x[iref])
+            y = np.median(D.y[iref])
             dist = np.sqrt((D.x - x)**2 + (D.y - y)**2)
-            # indices of nearby points (to include crossover points)
-            ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 100)) &
+            # local slope
+            e_slope = np.median(D.e_slope[iref])
+            n_slope = np.median(D.n_slope[iref])
+            # indices of nearby points (include nearby crossover points)
+            ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 50)) &
                 np.isfinite(D.tide_ocean))
             # check if minimum number of values for fit
             if (len(ii) < 4):
@@ -265,10 +269,11 @@ def apply_tides(D, xy0, W,
             # reduce time and ocean amplitude to global reference point
             t = np.copy(D.time[ii])
             tide = np.copy(D.tide_ocean[ii])
-            # reduce DAC-corrected height to global reference point
+            # correct heights for ocean variability and local slope
             dac = np.copy(D.dac[ii])
             dac[~np.isfinite(dac)] = 0.0
-            h = D.z[ii] - dac
+            # reduce corrected heights to global reference point
+            h = D.z[ii] - dac - e_slope*(D.x[ii]-x) - n_slope*(D.y[ii]-y)
             # use linear least-squares with bounds on the variables
             # create design matrix
             p0 = np.ones_like(t)
