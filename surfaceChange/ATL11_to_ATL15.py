@@ -374,7 +374,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             edge_pad=None,\
             error_res_scale=None,\
             calc_error_file=None,\
-            verbose=False):
+            verbose=False,\
+            write_data_only=False):
     '''
     Function to generate DEMs and height-change maps based on ATL11 surface height data.
 
@@ -477,6 +478,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                     tide_mask_data=tide_mask_data, tide_directory=tide_directory,
                     tide_model=tide_model, tide_adjustment=tide_adjustment,
                     EPSG=EPSG, verbose=verbose)
+
+    if write_data_only:
+        return {'data':data}
 
     # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
@@ -588,6 +592,7 @@ def main(argv):
     parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
     parser.add_argument('--region', type=str, help='region for which calculation is being performed')
     parser.add_argument('--verbose','-v', action="store_true")
+    parser.add_argument('--write_data_only', action='store_true', help='save data without processing')
     args, unknown=parser.parse_known_args()
 
     args.grid_spacing = [np.float64(temp) for temp in args.grid_spacing.split(',')]
@@ -665,9 +670,13 @@ def main(argv):
            calc_error_file=args.calc_error_file, \
            error_res_scale=args.error_res_scale, \
            avg_scales=args.avg_scales, \
-           verbose=args.verbose)
+           verbose=args.verbose, \
+           write_data_only=args.write_data_only)
 
     if S is None:
+        return
+    if args.write_data_only:
+        S['data'].to_h5(args.out_name, group='data')
         return
 
     if args.calc_error_file is None and 'm' in S and len(S['m'].keys()) > 0:

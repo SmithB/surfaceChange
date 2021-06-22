@@ -8,12 +8,14 @@ rm -rf par_run
 [ -z "$2" ] || region_string="-R $2"
     
 for step in centers edges corners; do
-    
-    python3 make_1415_queue.py $step $defaults_file $region_string > queue.txt
 
-    [ -s queue.txt ] || continue
+    queue_file=`make_ATL1415_queue.py $step $defaults_file $region_string  | grep Wrote | awk '{print $NF}'`
+
+
+
+    [ -s $queue_file ] || continue
     
-    pboss.py -s queue.txt
+    pboss.py -s $queue_file
     
     pboss.py -r -p -w
 
