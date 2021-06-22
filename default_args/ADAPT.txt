@@ -1,9 +1,3 @@
--W=80000 
--g=100,1000,0.25
---dzdt_lags=1,4,8
---E_d3zdx2dt=0.00003 
---E_d2z0dx2=0.006
---E_d2zdt2=50000 
 --mask_dir=/home/besmith4/git_repos/surfaceChange/masks/
 --tide_directory=/att/nobackup/project/icesat-2/tide_models
 --ATL14_root=/att/nobackup/project/icesat-2/ATL14_processing/
