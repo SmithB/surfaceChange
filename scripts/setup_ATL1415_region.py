@@ -69,6 +69,13 @@ for this in [release_dir, hemi_dir, region_dir]:
     if not os.path.isdir(this):
         os.mkdir(this)
 
+# if ATL11 release is specified and ATL11 geoindex is not specified, guess the location
+if '--ATL11_index' not in defaults and '--ATL11_release' in defaults:
+    defaults['--ATL11_index'] = os.path.join(defaults['--ATL11_root'], 'ATL11_rel'+defaults['--ATL11_release'], hemisphere_name, 'index','GeoIndex.h5')
+    defaults.pop('--ALT11_release')
+if not os.path.isfile(defaults['--ATL11_index']):
+    raise(OSError(f"ATL11 index file {defaults['--ATL11_index']} does not exist"))        
+        
 # write out the composite defaults file
 defaults_file=os.path.join(region_dir, f'input_args_{defaults["--region"]}.txt')
 with open(defaults_file, 'w') as fh:
