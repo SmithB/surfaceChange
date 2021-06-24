@@ -16,6 +16,7 @@ import pointCollection as pc
 import re
 import sys
 import h5py
+import traceback
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
 import pyTMD
@@ -101,6 +102,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
            'latitude':D11.latitude,
            'longitude':D11.longitude,
            'rgt':D11.rgt,
+           'pair':np.zeros_like(D11.x)+D11.pair,
            'ref_pt':D11.ref_pt,
            'cycle':D11.cycle_number,
            'n_cycles': n_cycles,
@@ -151,6 +153,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
             'latitude':D_x.latitude,
             'longitude':D_x.longitude,
             'rgt':D_x.rgt,
+            'pair':np.zeros_like(D_x.x)+D_x.pair,
             'ref_pt':blank,
             'cycle':D_x.cycle_number,
             'n_cycles':blank,
@@ -173,15 +176,16 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
 
     return D
 
-def apply_tides(D, xy0, W, 
-                tide_mask_file=None, 
+def apply_tides(D, xy0, W,
+                tide_mask_file=None,
                 tide_mask_data=None,
-                tide_directory=None, 
+                tide_directory=None,
                 tide_model=None,
+                tide_adjustment=False,
+                tide_adjustment_file=None,
                 extrapolate=True,
                 cutoff=20,
-                adjust=False, 
-                EPSG=None, 
+                EPSG=None,
                 verbose=False):
 
 
@@ -193,21 +197,22 @@ def apply_tides(D, xy0, W,
         D: data structure
         xy0: 2-element iterable specifying the domain center
         W: Width of the domain
-        
-        
+
+
     keyword arguments:
         tide_mask_file: geotiff file for masking to ice shelf elements
         tide_mask_data: pc.grid.data() object containing the tide mask (alternative to tide_mask_file)
         tide_directory: path to tide models
         tide_model: the name of the tide model to use
+        tide_adjustment: use bounded least-squares fit to adjust tides for extrapolated points
+        tide_adjustment_file: file specifying the areas for which the tide model should be empirically adjusted
         extrapolate: extrapolate outside tide model bounds with nearest-neighbors
         cutoff: extrapolation cutoff in kilometers
-        adjust: use bounded least-squares fit to adjust tides for extrapolated points
 
     output:
         D: data structure corrected for ocean tides and dac
     '''
-    
+
     # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
     if tide_mask_file is not None and tide_mask_data is None:
         tide_mask = pc.grid.data().from_geotif(tide_mask_file,
@@ -215,7 +220,8 @@ def apply_tides(D, xy0, W,
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     if verbose:
         print(f"\t\t{np.mean(is_els)*100}% shelf data")
-    print([tide_directory, tide_model])
+        print(f"\t\ttide model: {tide_model}")
+        print(f"\t\ttide directory: {tide_directory}")
     # extrapolate tide estimate beyond model bounds
     # extrapolation cutoff is in kilometers
     if np.any(is_els.ravel()):
@@ -227,43 +233,92 @@ def apply_tides(D, xy0, W,
     # use a bounded least-squares fit to adjust tides
     # this is a purely empirical correction that
     # does not take into account ice shelf flexure physics
-    if np.any(is_els.ravel()) and adjust:
-        D.assign({'tide_adj_scale': np.zeros_like(D.x)})
-        # check if point is within model domain
-        inmodel = pyTMD.check_tide_points(D.x, D.y,
-            DIRECTORY=tide_directory, MODEL=TIDE_MODEL,
-            EPSG=EPSG)
-        # find where points have an extrapolated tide value
-        # only calculate adjustments for ice shelf values
-        isextrapolated = np.nonzero(np.isfinite(D.tide_ocean) &
-            np.logical_not(inmodel) & is_els.ravel())
+    if np.any(is_els.ravel()) and tide_adjustment:
+        D.assign({'tide_adj_scale': np.ones_like(D.x)})
+        D.tide_adj_scale[is_els==0]=0.0
+        # adjust indices that are extrapolated of within a defined mask
+        if not tide_adjustment_file:
+            # check if point is within model domain
+            inmodel = pyTMD.check_tide_points(D.x, D.y,
+                DIRECTORY=tide_directory, MODEL=tide_model,
+                EPSG=EPSG)
+            # find where points have an extrapolated tide value
+            # only calculate adjustments for ice shelf values
+            adjustment_indices, = np.nonzero(np.isfinite(D.tide_ocean) &
+                np.logical_not(inmodel) & is_els.ravel() & D.along_track)
+        else:
+            # read adjustment mask and calculate indices
+            adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
+                bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+            adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
+                np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
+        # make a global reference point number combining ref_pt, rgt and pair
+        # convert both pair and rgt to zero-based indices
+        global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
+        u_ref_pt = np.unique(global_ref_pt[adjustment_indices])
+        print(f"\t\ttide adjustment: {len(u_ref_pt)} refs") if verbose else None
+        print(f"\t\t{tide_adjustment_file}") if tide_adjustment_file else None
         # calculate temporal fit of tide points with model phases
         # only for reference points that are extrapolated
-        for ref_pt in np.unique(D.ref_pt[isextrapolated]):
-            ii, = np.nonzero(D.ref_pt == ref_pt)
-            # reduce delta time and ocean amplitude to ref_pt
-            t = np.copy(D.delta_time[ii])
+        for ref_pt in u_ref_pt:
+            # indices for along-track coordinates for reference point
+            iref, = np.nonzero((global_ref_pt == ref_pt) & D.along_track)
+            # calculate distance from central point
+            x = np.median(D.x[iref])
+            y = np.median(D.y[iref])
+            dist = np.sqrt((D.x - x)**2 + (D.y - y)**2)
+            # indices of nearby points (include nearby crossover points)
+            ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 100)) &
+                np.isfinite(D.tide_ocean) & is_els.ravel())
+            # check if minimum number of values for fit
+            if (len(ii) < 6):
+                # continue to next global reference point
+                continue
+            # reduce time and ocean amplitude to global reference point
+            t = np.copy(D.time[ii])
             tide = np.copy(D.tide_ocean[ii])
-            # reduce DAC-corrected height to ref_pt
+            # correct heights for ocean variability
             dac = np.copy(D.dac[ii])
-            dac[~np.isfinite(D.dac)] = 0.0
+            dac[~np.isfinite(dac)] = 0.0
+            # reduce DAC-corrected heights to global reference point
             h = D.z[ii] - dac
+            # use linear least-squares with bounds on the variables
             # create design matrix
             p0 = np.ones_like(t)
-            DMAT = np.transpose([p0,t,tide])
+            p1 = t - np.median(t)
+            DMAT = np.c_[tide,p0,p1]
             # tuple for parameter bounds (lower and upper)
+            # output tidal amplitudes must be between 0 and 1 of model
             # average height must be between minimum and maximum of h
             # elevation change rate must be between a "reasonable" range
-            # output tidal amplitudes must be between 0 and 1 of model
-            lb,ub = ([np.min(h),-10.0,0.0],[np.max(h),10.0,1.0])
-            # use linear least-squares with bounds on the variables
+            lb,ub = ([0.0,np.nanmin(h),-10.0],[1.0,np.nanmax(h),10.0])
+            # check if there are coordinates away from central point
+            if np.any((D.x[ii]-x)**2 + (D.y[ii]-y)**2):
+                # append horizontal coordinates to design matrix
+                DMAT = np.c_[DMAT,D.x[ii]-x,D.y[ii]-y]
+                # calculate min and max of surface slopes
+                e_slope_min = np.nanmin(D.e_slope[ii])
+                e_slope_max = np.nanmax(D.e_slope[ii])
+                n_slope_min = np.nanmin(D.n_slope[ii])
+                n_slope_max = np.nanmax(D.n_slope[ii])
+                # append lists for parameter bounds (lower and upper)
+                # fit slopes must be within the range of ATL11 slopes
+                lb.extend([e_slope_min,n_slope_min])
+                ub.extend([e_slope_max,n_slope_max])
+            # attempt bounded linear least squares
             try:
                 results = scipy.optimize.lsq_linear(DMAT, h,
                     bounds=(lb,ub))
             except:
+                # print exceptions
+                if verbose:
+                    traceback.print_exc()
+                # continue to next global reference point
+                # and use original tide values
                 continue
             else:
-                H,dH,adj = np.copy(results['x'])
+                # extract tidal adjustment estimate
+                adj,*_ = np.copy(results['x'])
             # multiply tides by adjustments
             D.tide_ocean[ii] *= adj
             D.tide_adj_scale[ii] = adj
@@ -336,11 +391,13 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             tide_mask_file=None,\
             tide_directory=None,\
             tide_adjustment=False,\
+            tide_adjustment_file=None,\
             tide_model=None,\
             avg_scales=None,\
             edge_pad=None,\
             error_res_scale=None,\
             calc_error_file=None,\
+            verbose=False,\
             write_data_only=False):
     '''
     Function to generate DEMs and height-change maps based on ATL11 surface height data.
@@ -366,9 +423,12 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         tide_mask_file: (string)  File specifying the areas for which the tide model should be calculated
         tide_directory: (string)  Directory containing the tide model data
         tide_adjustment: (bool)  Use bounded least-squares fit to adjust tides for extrapolated points
+        tide_adjustment_file: (string)  File specifying the areas for which the tide model should be empirically adjusted
+        tide_model: (string)  Name of the tide model to use for a given domain
         avg_scales: (list of floats) scales over which the output grids will be averaged and errors will be calculated
         error_res_scale: (float) If errors are calculated, the grid resolution will be coarsened by this factor
         calc_error_file: (string) Output file for which errors will be calculated.
+        verbose: (bool) Print progress of processing run
     '''
     SRS_proj4, EPSG=get_SRS_info(hemisphere)
 
@@ -438,10 +498,18 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if (tide_mask_file is not None or tide_mask_data is not None) and reread_dirs is None and calc_error_file is None and data_file is None:
-        apply_tides(data, xy0, Wxy, tide_mask_file=tide_mask_file, tide_mask_data=tide_mask_data, tide_directory=tide_directory, tide_model=tide_model, EPSG=EPSG)
-    
+        apply_tides(data, xy0, Wxy,
+                    tide_mask_file=tide_mask_file,
+                    tide_mask_data=tide_mask_data,
+                    tide_directory=tide_directory,
+                    tide_model=tide_model,
+                    tide_adjustment=tide_adjustment,
+                    tide_adjustment_file=tide_adjustment_file,
+                    EPSG=EPSG, verbose=verbose)
+
     if write_data_only:
         return {'data':data}
+
     # call smooth_xytb_fitting
     S=smooth_xytb_fit(data=data, ctr=ctr, W=W, spacing=spacing, E_RMS=E_RMS0,
                      reference_epoch=reference_epoch, N_subset=N_subset, compute_E=compute_E,
@@ -544,6 +612,7 @@ def main(argv):
     parser.add_argument('--tide_mask_file', type=str)
     parser.add_argument('--tide_directory', type=str)
     parser.add_argument('--tide_adjustment', action="store_true", help="Use bounded least-squares fit to adjust tides")
+    parser.add_argument('--tide_adjustment_file', type=str, help="File specifying the areas for which the tide model should be empirically adjusted")
     parser.add_argument('--tide_model', type=str)
     parser.add_argument('--reference_epoch', type=int, default=0, help="Reference epoch number, for which dz=0")
     parser.add_argument('--data_file', type=str, help='read data from this file alone')
@@ -551,13 +620,14 @@ def main(argv):
     parser.add_argument('--calc_error_for_xy', action='store_true', help='calculate the errors for the file specified by the x0, y0 arguments')
     parser.add_argument('--error_res_scale','-s', type=float, nargs=2, default=[4, 2], help='if the errors are being calculated (see calc_error_file), scale the grid resolution in x and y to be coarser')
     parser.add_argument('--region', type=str, help='region for which calculation is being performed')
+    parser.add_argument('--verbose','-v', action="store_true")
     parser.add_argument('--write_data_only', action='store_true', help='save data without processing')
     args, unknown=parser.parse_known_args()
 
-    args.grid_spacing = [np.float(temp) for temp in args.grid_spacing.split(',')]
-    args.dzdt_lags = [np.int(temp) for temp in args.dzdt_lags.split(',')]
-    args.time_span = [np.float(temp) for temp in args.time_span.split(',')]
-    args.avg_scales = [np.int(temp) for temp in args.avg_scales.split(',')]
+    args.grid_spacing = [np.float64(temp) for temp in args.grid_spacing.split(',')]
+    args.dzdt_lags = [np.int64(temp) for temp in args.dzdt_lags.split(',')]
+    args.time_span = [np.float64(temp) for temp in args.time_span.split(',')]
+    args.avg_scales = [np.int64(temp) for temp in args.avg_scales.split(',')]
 
     spacing={'z0':args.grid_spacing[0], 'dz':args.grid_spacing[1], 'dt':args.grid_spacing[2]}
     E_RMS={'d2z0_dx2':args.E_d2z0dx2, 'd3z_dx2dt':args.E_d3zdx2dt, 'd2z_dxdt':args.E_d3zdx2dt*args.data_gap_scale,  'd2z_dt2':args.E_d2zdt2}
@@ -622,6 +692,7 @@ def main(argv):
            tide_mask_file=args.tide_mask_file, \
            tide_directory=args.tide_directory, \
            tide_adjustment=args.tide_adjustment, \
+           tide_adjustment_file=args.tide_adjustment_file, \
            tide_model=args.tide_model, \
            max_iterations=args.max_iterations, \
            reference_epoch=args.reference_epoch, \
@@ -629,6 +700,7 @@ def main(argv):
            calc_error_file=args.calc_error_file, \
            error_res_scale=args.error_res_scale, \
            avg_scales=args.avg_scales, \
+           verbose=args.verbose, \
            write_data_only=args.write_data_only)
 
     if S is None:
