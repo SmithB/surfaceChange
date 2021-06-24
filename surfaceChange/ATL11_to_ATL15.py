@@ -245,13 +245,13 @@ def apply_tides(D, xy0, W,
             # find where points have an extrapolated tide value
             # only calculate adjustments for ice shelf values
             adjustment_indices, = np.nonzero(np.isfinite(D.tide_ocean) &
-                np.logical_not(inmodel) & D.along_track)
+                np.logical_not(inmodel) & is_els.ravel() & D.along_track)
         else:
             # read adjustment mask and calculate indices
             adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
                 bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
             adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
-                np.isfinite(D.tide_ocean) & D.along_track)
+                np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
         # make a global reference point number combining ref_pt, rgt and pair
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
@@ -262,15 +262,14 @@ def apply_tides(D, xy0, W,
         # only for reference points that are extrapolated
         for ref_pt in u_ref_pt:
             # indices for along-track coordinates for reference point
-            iref, = np.nonzero((global_ref_pt == ref_pt) &
-                np.isfinite(D.tide_ocean) & D.along_track)
+            iref, = np.nonzero((global_ref_pt == ref_pt) & D.along_track)
             # calculate distance from central point
             x = np.median(D.x[iref])
             y = np.median(D.y[iref])
             dist = np.sqrt((D.x - x)**2 + (D.y - y)**2)
             # indices of nearby points (include nearby crossover points)
             ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 100)) &
-                np.isfinite(D.tide_ocean))
+                np.isfinite(D.tide_ocean) & is_els.ravel())
             # check if minimum number of values for fit
             if (len(ii) < 6):
                 # continue to next global reference point
