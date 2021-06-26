@@ -76,6 +76,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
         return None
     D_list=[]
     XO_list=[]
+    file_list= [ Di.filename for Di in D11_list ]
     for D11 in D11_list:
         D11.get_xy(proj4_string=SRS_proj4)
         # select the subset of the data within the domain
@@ -168,13 +169,14 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
     try:
         D=pc.data().from_list(D_list+XO_list).ravel_fields()
         D.index(np.isfinite(D.z))
+        
     except ValueError:
         # catch empty data
-        return None
+        return None, file_list
 
     D.index(( D.fit_quality ==0 ) | ( D.fit_quality == 2 ))
 
-    return D
+    return D, file_list
 
 def apply_tides(D, xy0, W,
                 tide_mask_file=None,
@@ -468,6 +470,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     W={'x':Wxy, 'y':Wxy,'t':np.diff(t_span)}
     ctr={'x':xy0[0], 'y':xy0[1], 't':np.mean(t_span)}
 
+    # initialize file_list to empty in case we're rereading the data
+    file_list=[]
+    
     # figure out where to get the data
     if data_file is not None:
         data=pc.data().from_h5(data_file, group='data')
@@ -479,7 +484,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
     elif reread_dirs is not None:
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
-        data=read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
+        data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
         N0=data.size
         decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
         print(f'decimated {N0} to {data.size}')
@@ -548,6 +553,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                      mask_file=mask_file, mask_data=mask_data, mask_scale={0:10, 1:1},
                      error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
+    S['file_list'] = file_list
     return S
 
 def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
@@ -557,13 +563,19 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
         h5f.create_group('/data')
         for key in S['data'].fields:
             h5f.create_dataset('/data/'+key, data=getattr(S['data'], key))
+        # metadata:
         h5f.create_group('/meta')
         h5f.create_group('/meta/timing')
         for key in S['timing']:
             h5f['/meta/timing/'].attrs[key]=S['timing'][key]
+        # write out list of ATL11 files so that lineage can be populated in ATL14/15
+        if 'file_list' in S:
+            h5f['meta'].attrs['input_files'] = ','.join([os.path.basename(Si) for Si in S['file_list']]).encode('ascii')
+        h5f['meta'].attrs['first_delta_time']=np.nanmin(S['data'].delta_time)
+        h5f['meta'].attrs['last_delta_time']=np.nanmax(S['data'].delta_time)
         h5f.create_group('/RMS')
         for key in S['RMS']:
-           h5f.create_dataset('/RMS/'+key, data=S['RMS'][key])
+            h5f.create_dataset('/RMS/'+key, data=S['RMS'][key])
         h5f.create_group('E_RMS')
         for key in S['E_RMS']:
             h5f.create_dataset('E_RMS/'+key, data=S['E_RMS'][key])
