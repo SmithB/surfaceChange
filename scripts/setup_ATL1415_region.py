@@ -71,8 +71,8 @@ for this in [release_dir, hemi_dir, region_dir]:
 
 # if ATL11 release is specified and ATL11 geoindex is not specified, guess the location
 if '--ATL11_index' not in defaults and '--ATL11_release' in defaults:
-    defaults['--ATL11_index'] = os.path.join(defaults['--ATL11_root'], 'ATL11_rel'+defaults['--ATL11_release'], hemisphere_name, 'index','GeoIndex.h5')
-    defaults.pop('--ALT11_release')
+    defaults['--ATL11_index'] = os.path.join(defaults['--ATL14_root'], 'ATL11_rel'+defaults['--ATL11_release'], hemisphere_name, 'index','GeoIndex.h5')
+    defaults.pop('--ATL11_release')
 if not os.path.isfile(defaults['--ATL11_index']):
     raise(OSError(f"ATL11 index file {defaults['--ATL11_index']} does not exist"))        
         
