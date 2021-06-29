@@ -187,7 +187,7 @@ def apply_tides(D, xy0, W,
                 tide_adjustment_file=None,
                 sigma_tolerance=0.5,
                 extrapolate=True,
-                cutoff=20,
+                cutoff=200,
                 EPSG=None,
                 verbose=False):
 
