@@ -183,6 +183,7 @@ def apply_tides(D, xy0, W,
                 tide_model=None,
                 tide_adjustment=False,
                 tide_adjustment_file=None,
+                sigma_tolerance=0.5,
                 extrapolate=True,
                 cutoff=20,
                 EPSG=None,
@@ -206,6 +207,7 @@ def apply_tides(D, xy0, W,
         tide_model: the name of the tide model to use
         tide_adjustment: use bounded least-squares fit to adjust tides for extrapolated points
         tide_adjustment_file: file specifying the areas for which the tide model should be empirically adjusted
+        sigma_tolerance: maximum height sigmas allowed in tidal adjustment fit
         extrapolate: extrapolate outside tide model bounds with nearest-neighbors
         cutoff: extrapolation cutoff in kilometers
 
@@ -236,6 +238,7 @@ def apply_tides(D, xy0, W,
     if np.any(is_els.ravel()) and tide_adjustment:
         D.assign({'tide_adj_scale': np.ones_like(D.x)})
         D.tide_adj_scale[is_els==0]=0.0
+        tide_adj_sigma = np.zeros_like(D.x) + np.inf
         # adjust indices that are extrapolated of within a defined mask
         if not tide_adjustment_file:
             # check if point is within model domain
@@ -268,10 +271,18 @@ def apply_tides(D, xy0, W,
             y = np.median(D.y[iref])
             dist = np.sqrt((D.x - x)**2 + (D.y - y)**2)
             # indices of nearby points (include nearby crossover points)
+            # reduce to ice shelf points with errors less than tolerance
             ii, = np.nonzero(((global_ref_pt == ref_pt) | (dist <= 100)) &
-                np.isfinite(D.tide_ocean) & is_els.ravel())
+                np.isfinite(D.tide_ocean) & is_els.ravel() &
+                (D.sigma < sigma_tolerance))
+            # calculate differences in spatial coordinates
+            dx = D.x[ii] - x
+            dy = D.y[ii] - y
             # check if minimum number of values for fit
-            if (len(ii) < 6):
+            if (len(ii) < 4):
+                # continue to next global reference point
+                continue
+            elif np.any(dx**2 + dy**2) and (len(ii) < 6):
                 # continue to next global reference point
                 continue
             # reduce time and ocean amplitude to global reference point
@@ -287,15 +298,19 @@ def apply_tides(D, xy0, W,
             p0 = np.ones_like(t)
             p1 = t - np.median(t)
             DMAT = np.c_[tide,p0,p1]
+            # check if there are enough unique dates for fit
+            u_days = np.unique(np.round(p1*365.25))
+            if (len(u_days) <= 3):
+                continue
             # tuple for parameter bounds (lower and upper)
             # output tidal amplitudes must be between 0 and 1 of model
             # average height must be between minimum and maximum of h
-            # elevation change rate must be between a "reasonable" range
-            lb,ub = ([0.0,np.nanmin(h),-10.0],[1.0,np.nanmax(h),10.0])
+            # elevation change rate must be between range
+            lb,ub = ([0.0,np.nanmin(h),-2.0],[1.0,np.nanmax(h),2.0])
             # check if there are coordinates away from central point
-            if np.any((D.x[ii]-x)**2 + (D.y[ii]-y)**2):
+            if np.any(dx**2 + dy**2):
                 # append horizontal coordinates to design matrix
-                DMAT = np.c_[DMAT,D.x[ii]-x,D.y[ii]-y]
+                DMAT = np.c_[DMAT,dx,dy]
                 # calculate min and max of surface slopes
                 e_slope_min = np.nanmin(D.e_slope[ii])
                 e_slope_max = np.nanmax(D.e_slope[ii])
@@ -305,10 +320,16 @@ def apply_tides(D, xy0, W,
                 # fit slopes must be within the range of ATL11 slopes
                 lb.extend([e_slope_min,n_slope_min])
                 ub.extend([e_slope_max,n_slope_max])
+            # calculate degrees of freedom
+            n_max,n_terms = np.shape(DMAT)
+            nu = np.float64(n_max - n_terms)
             # attempt bounded linear least squares
             try:
+                # results from bounded least squares
                 results = scipy.optimize.lsq_linear(DMAT, h,
                     bounds=(lb,ub))
+                # model covariance matrix
+                Hinv = np.linalg.inv(np.dot(DMAT.T,DMAT))
             except:
                 # print exceptions
                 if verbose:
@@ -319,9 +340,18 @@ def apply_tides(D, xy0, W,
             else:
                 # extract tidal adjustment estimate
                 adj,*_ = np.copy(results['x'])
-            # multiply tides by adjustments
-            D.tide_ocean[ii] *= adj
-            D.tide_adj_scale[ii] = adj
+                # calculate mean square error
+                MSE = np.sum(results['fun']**2)/nu
+                # standard error from covariance matrix
+                adj_sigma,*_ = np.sqrt(MSE*np.diag(Hinv))
+            # use best case fits for each point
+            imin, = np.nonzero(tide_adj_sigma[ii] >= adj_sigma)
+            # copy adjustments and estimated uncertainties
+            D.tide_adj_scale[ii[imin]] = adj
+            tide_adj_sigma[ii[imin]] = adj_sigma
+        # multiply tides by adjustments
+        ii, = np.nonzero((D.tide_adj_scale < 1) & (tide_adj_sigma < 1))
+        D.tide_ocean[ii] *= D.tide_adj_scale[ii]
     # replace invalid tide and dac values
     D.tide_ocean[is_els==0] = 0
     D.dac[is_els==0] = 0
