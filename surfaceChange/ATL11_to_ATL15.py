@@ -60,6 +60,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
 
     output:
         D: data structure
+        file_list: list of ATL11 files read
     '''
 
     field_dict_11={None:['latitude','longitude','delta_time',\
@@ -73,7 +74,9 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
             xy0[0]+np.array([-Wxy/2, Wxy/2]), \
             xy0[1]+np.array([-Wxy/2, Wxy/2]), fields=field_dict_11)
     except ValueError:
-        return None
+        return None, []
+    if D11_list is None:
+        return None, []
     D_list=[]
     XO_list=[]
     file_list= [ Di.filename for Di in D11_list ]
