@@ -157,20 +157,22 @@ def ATL15_write2nc(args):
             ytile = tilegrp.createVariable('ytile', np.dtype('int32'), ('ytile',))
             ytile[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) 
             ytile.units = 'km'
+            ytile.long_name = 'y (N) value in tile file name'
             
             tilegrp.createDimension('xtile',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
             xtile = tilegrp.createVariable('xtile', np.dtype('int32'), ('xtile',))
             xtile[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)
             xtile.units = 'km'
+            xtile.long_name = 'x (E) value in tile file name'
 
             # create tile_stats/ variables in .nc file
             for key in tile_stats.keys():
-                if 'x' in key or 'y' in key or 'N_data' in key:
+                if 'x' == key or 'y' == key or 'N_data' == key:
                     dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('ytile','xtile'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
-                    if 'x' in key:
+                    if 'x' == key:
                         dsetvar.standard_name = 'projection_x_coordinate'
-                    if 'y' in key:
-                        dsetvar.standard_name = 'projection_x_coordinate'
+                    if 'y' == key:
+                        dsetvar.standard_name = 'projection_y_coordinate'
                 else:
                     dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('ytile','xtile'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
                     dsetvar.least_significant_digit = 4
@@ -212,31 +214,31 @@ def ATL15_write2nc(args):
                 crs_var.crs_wkt = ('PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]')
 
 
-            # make comfort figures
-            extent=[np.min(tile_stats['x']['data'])*fact,np.max(tile_stats['x']['data'])*fact,
-                    np.min(tile_stats['y']['data'])*fact,np.max(tile_stats['y']['data'])*fact]
-            cmap = mpl.cm.get_cmap("viridis").copy()
-            cmnan = mpl.cm.get_cmap(cmap)
-            cmnan.set_bad(color='white')
-            
-            for i,key in enumerate(tile_stats.keys()):
-                makey = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
-                fig,ax=plt.subplots(1,1)
-                ax = plt.subplot(1,1,1,projection=ccrs.NorthPolarStereo(central_longitude=-45))
-                ax.add_feature(cartopy.feature.LAND)
-                ax.coastlines(resolution='110m',linewidth=0.5)
-                ax.set_extent([-10,90,70,90],crs=ccrs.PlateCarree())
-                ax.gridlines(crs=ccrs.PlateCarree())
-                h=ax.imshow(makey,extent=extent,vmin=np.min(makey.ravel()),vmax=np.max(makey.ravel()),cmap=cmnan,origin='lower')
-                fig.colorbar(h,ax=ax)
-                ax.set_title(f'{key}')
-                fig.savefig(f"{os.path.join(args.base_dir,'tile_stats_' + key + '.png')}",format='png')
-                
-            plt.show(block=False)
-            plt.pause(0.001)
-            input('Press enter to end.')
-            plt.close('all')
-            exit(-1)
+#            # make comfort figures
+#            extent=[np.min(tile_stats['x']['data'])*fact,np.max(tile_stats['x']['data'])*fact,
+#                    np.min(tile_stats['y']['data'])*fact,np.max(tile_stats['y']['data'])*fact]
+#            cmap = mpl.cm.get_cmap("viridis").copy()
+#            cmnan = mpl.cm.get_cmap(cmap)
+#            cmnan.set_bad(color='white')
+#            
+#            for i,key in enumerate(tile_stats.keys()):
+#                makey = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+#                fig,ax=plt.subplots(1,1)
+#                ax = plt.subplot(1,1,1,projection=ccrs.NorthPolarStereo(central_longitude=-45))
+#                ax.add_feature(cartopy.feature.LAND)
+#                ax.coastlines(resolution='110m',linewidth=0.5)
+#                ax.set_extent([-10,90,70,90],crs=ccrs.PlateCarree())
+#                ax.gridlines(crs=ccrs.PlateCarree())
+#                h=ax.imshow(makey,extent=extent,vmin=np.min(makey.ravel()),vmax=np.max(makey.ravel()),cmap=cmnan,origin='lower')
+#                fig.colorbar(h,ax=ax)
+#                ax.set_title(f'{key}')
+#                fig.savefig(f"{os.path.join(args.base_dir,'tile_stats_' + key + '.png')}",format='png')
+#                
+#            plt.show(block=False)
+#            plt.pause(0.001)
+#            input('Press enter to end.')
+#            plt.close('all')
+#            exit(-1)
 
             # loop over dz*.h5 files for one ave
             for jj in range(len(lags['file'])):
