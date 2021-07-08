@@ -6,11 +6,14 @@ Created on Fri Jan 24 10:45:47 2020
 @author: ben05
 """
 import numpy as np
-import  os, h5py, csv
+import  os, h5py, csv, re
 import ast
 import importlib.resources
 from netCDF4 import Dataset
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import cartopy.crs as ccrs
+import cartopy.feature
 
 def ATL15_write2nc(args):
 
@@ -36,7 +39,8 @@ def ATL15_write2nc(args):
             
         dsetvar[:] = data
         for attr in attr_names:
-            dsetvar.setncattr(attr,field_attrs[field][attr])
+            if attr != 'group description':
+                dsetvar.setncattr(attr,field_attrs[field][attr])
         # add attributes for projection
         if not field.startswith('time'):
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
@@ -91,44 +95,118 @@ def ATL15_write2nc(args):
             fileout = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + '_01km_' + args.Release + '_' + args.version + '.nc'
         else:
             fileout = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '.nc'
-        print('output file:',fileout)
+#        print('output file:',fileout)
     
         with Dataset(fileout,'w',clobber=True) as nc:
             nc.setncattr('GDAL_AREA_OR_POINT','Area')
             nc.setncattr('Conventions','CF-1.6')
             
-            if args.region in ['AK','CN','CS','GL','IC','SV','RU']:
-                crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
-                crs_var.standard_name = 'Polar_Stereographic'
-                crs_var.grid_mapping_name = 'polar_stereographic'
-                crs_var.straight_vertical_longitude_from_pole = -45.0
-                crs_var.latitude_of_projection_origin = 90.0
-                crs_var.standard_parallel = 70.0
-                crs_var.scale_factor_at_projection_origin = 1.
-                crs_var.false_easting = 0.0
-                crs_var.false_northing = 0.0
-                crs_var.semi_major_axis = 6378.137
-                crs_var.semi_minor_axis = 6356.752
-                crs_var.inverse_flattening = 298.257223563
-                crs_var.spatial_epsg = '3413'
-                crs_var.spatial_ref = 'PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]'
-                crs_var.crs_wkt = ('PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]')
-            elif args.region == 'AA':
-                crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
-                crs_var.standard_name = 'Polar_Stereographic'
-                crs_var.grid_mapping_name = 'polar_stereographic'
-                crs_var.straight_vertical_longitude_from_pole = 0.0
-                crs_var.latitude_of_projection_origin = -90.0
-                crs_var.standard_parallel = -71.0
-                crs_var.scale_factor_at_projection_origin = 1.
-                crs_var.false_easting = 0.0
-                crs_var.false_northing = 0.0
-                crs_var.semi_major_axis = 6378.137
-                crs_var.semi_minor_axis = 6356.752
-                crs_var.inverse_flattening = 298.257223563
-                crs_var.spatial_epsg = '3031'
-                crs_var.spatial_ref = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
-                crs_var.crs_wkt = ('PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]')
+            # make tile_stats group (ATBD 4.1.2.1, Table 3)
+            tilegrp = nc.createGroup('tile_stats')   
+            tile_stats = {'x': { 'data': [], 'description':'tile-center x-coordinate, in projected coordinates', 'mapped':np.array(())},
+                          'y': { 'data': [], 'description':'tile-center y-coordinate, in projected coordinates', 'mapped':np.array(())},
+                          'N_data': { 'data': [], 'description':'number of data used in fit', 'mapped':np.array(())},
+                          'RMS_data': { 'data': [], 'description':'root mean of squared, scaled data misfits', 'mapped':np.array(())},
+                          'RMS_bias': { 'data': [], 'description':'root mean of squared, scaled bias values', 'mapped':np.array(())},
+                          'N_bias': { 'data': [], 'description':'number of bias values solved for', 'mapped':np.array(())},
+                          'RMS_d2z0dx2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second spatial derivative of z0', 'mapped':np.array(())},
+                          'RMS_d2zdt2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz', 'mapped':np.array(())},
+                          'RMS_d2zdx2dt' : { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz/dt', 'mapped':np.array(())}
+                          }
+            
+            # work through the tiles in all three subdirectories
+            for sub in ['centers','edges','corners']:
+                files = os.listdir(os.path.join(args.base_dir,sub))
+                for file in files:
+                    tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1))) 
+                    tile_stats['y']['data'].append(int(re.match(r'^.*N(.*)\..*$',file).group(1)))
+                    with h5py.File(os.path.join(args.base_dir,sub,file),'r') as h5:
+                        tile_stats['N_data']['data'].append( np.sum(h5['data']['three_sigma_edit'][:]) )
+                        tile_stats['RMS_data']['data'].append( h5['RMS']['data'][()] )  # use () for getting a scalar.
+                        tile_stats['RMS_bias']['data'].append( np.sqrt(np.mean((h5['bias']['val'][:]/h5['bias']['expected'][:])**2)) )
+                        tile_stats['N_bias']['data'].append( len(h5['bias']['val'][:]) )  #### or all BUT the zeros.
+                        tile_stats['RMS_d2z0dx2']['data'].append( h5['RMS']['grad2_z0'][()] )
+                        tile_stats['RMS_d2zdt2']['data'].append( h5['RMS']['d2z_dt2'][()] )
+                        tile_stats['RMS_d2zdx2dt']['data'].append( h5['RMS']['grad2_dzdt'][()] )
+                        
+            # establish output grids
+            for key in tile_stats.keys():
+                if 'x' == key or 'y' == key or 'N_data' == key:  #integers
+                    tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
+                                                           len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
+                                                           dtype=int)
+                else:
+                    tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
+                                                           len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
+                                                           dtype=float)
+    
+            # fill grids
+            for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
+                for key in tile_stats.keys():
+                    # fact helps convert x,y in km to m
+                    if 'x' in key or 'y' in key:
+                        fact=1000
+                    else:
+                        fact=1
+                    tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
+                    tile_stats[key]['data'][i] * fact
+                    tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+
+            # make dimensions
+            tilegrp.createDimension('ytile',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
+            ytile = tilegrp.createVariable('ytile', np.dtype('int32'), ('ytile',))
+            ytile[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) 
+            ytile.units = 'km'
+            ytile.long_name = 'y (N) value in tile file name'
+            
+            tilegrp.createDimension('xtile',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
+            xtile = tilegrp.createVariable('xtile', np.dtype('int32'), ('xtile',))
+            xtile[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)
+            xtile.units = 'km'
+            xtile.long_name = 'x (E) value in tile file name'
+
+            # create tile_stats/ variables in .nc file
+            for key in tile_stats.keys():
+                if 'x' == key or 'y' == key or 'N_data' == key:
+                    dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('ytile','xtile'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
+                    if 'x' == key:
+                        dsetvar.standard_name = 'projection_x_coordinate'
+                    if 'y' == key:
+                        dsetvar.standard_name = 'projection_y_coordinate'
+                else:
+                    dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('ytile','xtile'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
+                    dsetvar.least_significant_digit = 4
+                dsetvar[:] = tile_stats[key]['mapped'][:]
+                dsetvar.setncattr('description',tile_stats[key]['description'])
+                dsetvar.setncattr('grid_mapping','Polar_Stereographic')
+            
+            crs_var = projection_variable(args.region,tilegrp)
+
+#            # make comfort figures
+#            extent=[np.min(tile_stats['x']['data'])*fact,np.max(tile_stats['x']['data'])*fact,
+#                    np.min(tile_stats['y']['data'])*fact,np.max(tile_stats['y']['data'])*fact]
+#            cmap = mpl.cm.get_cmap("viridis").copy()
+#            cmnan = mpl.cm.get_cmap(cmap)
+#            cmnan.set_bad(color='white')
+#            
+#            for i,key in enumerate(tile_stats.keys()):
+#                makey = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+#                fig,ax=plt.subplots(1,1)
+#                ax = plt.subplot(1,1,1,projection=ccrs.NorthPolarStereo(central_longitude=-45))
+#                ax.add_feature(cartopy.feature.LAND)
+#                ax.coastlines(resolution='110m',linewidth=0.5)
+#                ax.set_extent([-10,90,70,90],crs=ccrs.PlateCarree())
+#                ax.gridlines(crs=ccrs.PlateCarree())
+#                h=ax.imshow(makey,extent=extent,vmin=np.min(makey.ravel()),vmax=np.max(makey.ravel()),cmap=cmnan,origin='lower')
+#                fig.colorbar(h,ax=ax)
+#                ax.set_title(f'{key}')
+#                fig.savefig(f"{os.path.join(args.base_dir,'tile_stats_' + key + '.png')}",format='png')
+#                
+#            plt.show(block=False)
+#            plt.pause(0.001)
+#            input('Press enter to end.')
+#            plt.close('all')
+#            exit(-1)
 
             # loop over dz*.h5 files for one ave
             for jj in range(len(lags['file'])):
@@ -142,6 +220,10 @@ def ATL15_write2nc(args):
                 dzg=list(lags['file'][jj].keys())[0]      # dzg is group in input file
     
                 nc.createGroup(lags['varigrp'][jj])
+                print(lags['varigrp'][jj])
+                
+                # make projection variable for each group
+                crs_var = projection_variable(args.region,nc.groups[lags['varigrp'][jj]])
                                    
                 # dimension scales for each group
                 for field in ['x','y']:
@@ -155,8 +237,6 @@ def ATL15_write2nc(args):
                         yll = np.max(y)
                         dy = y[0]-y[1]
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
-#                    print('line 158',field,field_attrs)
-#                    exit(-1)
                     make_dataset(field,field,data,field_attrs,nc,nc.groups[lags['varigrp'][jj]],nctype,dimScale=True)
                 crs_var.GeoTransform = (xll,dx,0,yll,0,dy)
 
@@ -177,6 +257,8 @@ def ATL15_write2nc(args):
                             data = np.array(lags['file'][jj][dzg][dz_dict[field]]) 
                             for tt in range(data.shape[-1]):
                                 data[:,:,tt][np.isnan(cell_area_mask)] = np.nan
+                            if fld=='delta_h':  # add group description
+                                nc.groups[lags['varigrp'][jj]].setncattr('description',field_attrs[field]['group description'])
                         else:
                             data = np.array(lags['file'][jj][dzg][dz_dict[fld]])
                         if len(data.shape)==3:
@@ -202,6 +284,8 @@ def ATL15_write2nc(args):
                     data = np.moveaxis(data,2,0)  # t, y, x
                     field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field'] if row['group']=='height_change'+ave}
                     make_dataset(field,'dhdt',data,field_attrs,nc,nc.groups[lags['varigrp'][jj]],nctype,dimScale=False)
+                    # add group description
+                    nc.groups[lags['varigrp'][jj]].setncattr('description',field_attrs[field]['group description'])
                     
                     field = 'dhdt'+lags['vari'][jj]+'_sigma'+ave
                     data = np.array(lags['file'][jj][dzg]['sigma_'+dzg])
@@ -216,6 +300,7 @@ def ATL15_write2nc(args):
                     lags['file'][jj].close()
                 except:
                     pass
+        
 
     return fileout
     
@@ -238,6 +323,42 @@ if __name__=='__main__':
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
     args, unknown = parser.parse_known_args()
     print('args',args)
+    
+    def projection_variable(region,group):
+        if region in ['AK','CN','CS','GL','IC','SV','RU']:
+            crs_var = group.createVariable('Polar_Stereographic',np.byte,())
+            crs_var.standard_name = 'Polar_Stereographic'
+            crs_var.grid_mapping_name = 'polar_stereographic'
+            crs_var.straight_vertical_longitude_from_pole = -45.0
+            crs_var.latitude_of_projection_origin = 90.0
+            crs_var.standard_parallel = 70.0
+            crs_var.scale_factor_at_projection_origin = 1.
+            crs_var.false_easting = 0.0
+            crs_var.false_northing = 0.0
+            crs_var.semi_major_axis = 6378.137
+            crs_var.semi_minor_axis = 6356.752
+            crs_var.inverse_flattening = 298.257223563
+            crs_var.spatial_epsg = '3413'
+            crs_var.spatial_ref = 'PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]'
+            crs_var.crs_wkt = ('PROJCS["WGS 84 / NSIDC Sea Ice Polar Stereographic North",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",70],PARAMETER["central_meridian",-45],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],AUTHORITY["EPSG","3413"]]')
+        elif region == 'AA':
+            crs_var = group.createVariable('Polar_Stereographic',np.byte,())
+            crs_var.standard_name = 'Polar_Stereographic'
+            crs_var.grid_mapping_name = 'polar_stereographic'
+            crs_var.straight_vertical_longitude_from_pole = 0.0
+            crs_var.latitude_of_projection_origin = -90.0
+            crs_var.standard_parallel = -71.0
+            crs_var.scale_factor_at_projection_origin = 1.
+            crs_var.false_easting = 0.0
+            crs_var.false_northing = 0.0
+            crs_var.semi_major_axis = 6378.137
+            crs_var.semi_minor_axis = 6356.752
+            crs_var.inverse_flattening = 298.257223563
+            crs_var.spatial_epsg = '3031'
+            crs_var.spatial_ref = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
+            crs_var.crs_wkt = ('PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]')
+        return crs_var
+
     fileout = ATL15_write2nc(args)
 
 
