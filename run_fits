@@ -21,9 +21,9 @@ for step in centers edges corners; do
 
     #move the log files to the output directory
 
-    out_dir=`grep "b=" $defaults_file  | awk '{FS="="; print $2}' | tail -1`
-    [ -d $out_dir/logs ] || mkdir $out_dir/logs
-    mv par_run/logs/* $out_dir
+    log_dir=`grep "b=" $defaults_file  | awk '{FS="="; print $2}' | tail -1`/$step/logs
+    [ -d $log_dir/logs ] || mkdir $log_dir
+    mv par_run/logs/* $log_dir
    
 done
 
