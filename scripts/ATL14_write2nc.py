@@ -9,7 +9,7 @@ Created on Fri Jan 24 10:45:47 2020
 import numpy as np
 from scipy import stats
 import sys, os, h5py, glob, csv
-import io
+import io, re
 import pointCollection as pc
 import importlib.resources
 from netCDF4 import Dataset
@@ -32,7 +32,7 @@ def ATL14_write2nc(args):
               'int8':'i1'}
 
     # establish output file
-    fileout = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version +'.nc'
+    fileout = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_100m_' + args.Release + '_' + args.version +'.nc'
     print('output file:',fileout)
    
     with Dataset(fileout,'w',clobber=True) as nc:
@@ -71,6 +71,85 @@ def ATL14_write2nc(args):
             crs_var.spatial_epsg = '3031'
             crs_var.spatial_ref = 'PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]'
             crs_var.crs_wkt = ('PROJCS["WGS 84 / Antarctic Polar Stereographic",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3031"]]')
+
+        # make tile_stats group (ATBD 4.1.2.1, Table 3)
+        tilegrp = nc.createGroup('tile_stats')   
+        tile_stats = {'x': { 'data': [], 'description':'tile-center x-coordinate, in projected coordinates', 'mapped':np.array(())},
+                      'y': { 'data': [], 'description':'tile-center y-coordinate, in projected coordinates', 'mapped':np.array(())},
+                      'N_data': { 'data': [], 'description':'number of data used in fit', 'mapped':np.array(())},
+                      'RMS_data': { 'data': [], 'description':'root mean of squared, scaled data misfits', 'mapped':np.array(())},
+                      'RMS_bias': { 'data': [], 'description':'root mean of squared, scaled bias values', 'mapped':np.array(())},
+                      'N_bias': { 'data': [], 'description':'number of bias values solved for', 'mapped':np.array(())},
+                      'RMS_d2z0dx2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second spatial derivative of z0', 'mapped':np.array(())},
+                      'RMS_d2zdt2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz', 'mapped':np.array(())},
+                      'RMS_d2zdx2dt' : { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz/dt', 'mapped':np.array(())}
+                      }
+        
+        # work through the tiles in all three subdirectories
+        for sub in ['centers','edges','corners']:
+            files = os.listdir(os.path.join(args.base_dir,sub))
+            for file in files:
+                tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1))) 
+                tile_stats['y']['data'].append(int(re.match(r'^.*N(.*)\..*$',file).group(1)))
+                with h5py.File(os.path.join(args.base_dir,sub,file),'r') as h5:
+                    tile_stats['N_data']['data'].append( np.sum(h5['data']['three_sigma_edit'][:]) )
+                    tile_stats['RMS_data']['data'].append( h5['RMS']['data'][()] )  # use () for getting a scalar.
+                    tile_stats['RMS_bias']['data'].append( np.sqrt(np.mean((h5['bias']['val'][:]/h5['bias']['expected'][:])**2)) )
+                    tile_stats['N_bias']['data'].append( len(h5['bias']['val'][:]) )  #### or all BUT the zeros.
+                    tile_stats['RMS_d2z0dx2']['data'].append( h5['RMS']['grad2_z0'][()] )
+                    tile_stats['RMS_d2zdt2']['data'].append( h5['RMS']['d2z_dt2'][()] )
+                    tile_stats['RMS_d2zdx2dt']['data'].append( h5['RMS']['grad2_dzdt'][()] )
+                    
+        # establish output grids
+        for key in tile_stats.keys():
+            if 'x' == key or 'y' == key or 'N_data' == key:  #integers
+                tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
+                                                       len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
+                                                       dtype=int)
+            else:
+                tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
+                                                       len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
+                                                       dtype=float)
+
+        # fill grids
+        for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
+            for key in tile_stats.keys():
+                # fact helps convert x,y in km to m
+                if 'x' in key or 'y' in key:
+                    fact=1000
+                else:
+                    fact=1
+                tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
+                tile_stats[key]['data'][i] * fact
+                tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+
+        # make dimensions
+        tilegrp.createDimension('ytile',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
+        ytile = tilegrp.createVariable('ytile', np.dtype('int32'), ('ytile',))
+        ytile[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) 
+        ytile.units = 'km'
+        ytile.long_name = 'y (N) value in tile file name'
+        
+        tilegrp.createDimension('xtile',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
+        xtile = tilegrp.createVariable('xtile', np.dtype('int32'), ('xtile',))
+        xtile[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)
+        xtile.units = 'km'
+        xtile.long_name = 'x (E) value in tile file name'
+
+        # create tile_stats/ variables in .nc file
+        for key in tile_stats.keys():
+            if 'x' == key or 'y' == key or 'N_data' == key:
+                dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('ytile','xtile'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
+                if 'x' == key:
+                    dsetvar.standard_name = 'projection_x_coordinate'
+                if 'y' == key:
+                    dsetvar.standard_name = 'projection_y_coordinate'
+            else:
+                dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('ytile','xtile'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
+                dsetvar.least_significant_digit = 4
+            dsetvar[:] = tile_stats[key]['mapped'][:]
+            dsetvar.setncattr('description',tile_stats[key]['description'])
+            dsetvar.setncattr('grid_mapping','Polar_Stereographic')
 
         # get handle for input file with ROOT and height_change variables.
         FH = h5py.File(args.base_dir.rstrip('/')+'/z0.h5','r')
@@ -137,7 +216,7 @@ def ATL14_write2nc(args):
             elif field_attrs[field]['datatype'].startswith('float'):
                 fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.nan_to_num(data,nan=fill_value)
-            dsetvar = nc.iable(field,
+            dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
                                         dimensions, zlib=True, least_significant_digit=4,
                                         fill_value=fill_value)
@@ -146,6 +225,7 @@ def ATL14_write2nc(args):
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
                 
+
         FH.close()
    
     return fileout
@@ -166,7 +246,7 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
-    args=parser.parse_args()
+    args, unknown =parser.parse_known_args()
     print('args',args)
     fileout = ATL14_write2nc(args)
 
