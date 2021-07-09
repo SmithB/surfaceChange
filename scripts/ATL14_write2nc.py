@@ -216,7 +216,7 @@ def ATL14_write2nc(args):
             elif field_attrs[field]['datatype'].startswith('float'):
                 fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.nan_to_num(data,nan=fill_value)
-            dsetvar = nc.createVariable(field,
+            dsetvar = nc.iable(field,
                                         nctype[field_attrs[field]['datatype']],
                                         dimensions, zlib=True, least_significant_digit=4,
                                         fill_value=fill_value)
@@ -246,9 +246,7 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
-    args, unknown =parser.parse_known_args()
-    print('args',args)
+
+    args, _=parser.parse_known_args()
+    print('args:',args)
     fileout = ATL14_write2nc(args)
-
-
-
