@@ -10,19 +10,19 @@ rm $base/*.h5
 pad=10000
 feather=10000
 
-compute_sigma='False'
+compute_sigma='True'
 
 field=dz
-if [ $compute_sigma == 'true' ]; then
+if [ $compute_sigma == 'True' ]; then
    field="dz sigma_dz"
 fi
 
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p $pad -f $feather -O $base/dz.h5 --in_group dz/ -F count misfit_rms misfit_scaled_rms mask cell_area $field
 
-for lag in _lag1 _lag4; do
+for lag in _lag1 _lag4 _lag8; do
         echo "lag=$lag"
         field=dzdt$lag
-        if [ $compute_sigma == 'true' ]; then
+        if [ $compute_sigma == 'True' ]; then
              field="$field sigma_$field"
         fi
         python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p $pad -f $feather -O $base/dz$lag.h5 --in_group dzdt$lag/ -F $field
@@ -30,9 +30,10 @@ done
 
 for group in avg_dz_10000m avg_dz_20000m avg_dz_40000m; do
     field=$group
-    if [ $compute_sigma == 'true' ]; then
+    if [ $compute_sigma == 'True' ]; then
         field="$group sigma_$group"
     fi
+    echo "$group $field"
     this_pad=$pad
     this_feather=$feather
     this_S=""
@@ -45,20 +46,21 @@ for group in avg_dz_10000m avg_dz_20000m avg_dz_40000m; do
     python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p $this_pad -f $this_feather $this_S -O $base/$out.h5 --in_group $group/ -F $field cell_area
     
     group=`echo $group | sed s/dz/dzdt/`
-    for lag in _lag1 _lag4; do
+    for lag in _lag1 _lag4 _lag8; do
         echo "lag=$lag"
         field=$group$lag
-        if [ $compute_sigma == 'true' ]; then 
-             $field="$field sigma_$field"
+	field_list=$field
+	if [ $compute_sigma == 'True' ]; then 
+             field_list="$field_list sigma_$field"
         fi
-        echo "field="$field
-        python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p $this_pad -f $this_feather $this_S -O $base/$out$lag.h5 --in_group $field/ -F $field
+
+        python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g '*/*.h5'  -p $this_pad -f $this_feather $this_S -O $base/$out$lag.h5 --in_group $field/ -F $field_list
     done
 done
 
 #echo "z0"
 field=z0
-if [ $compute_sigma == 'true' ]; then
+if [ $compute_sigma == 'True' ]; then
     field="$field sigma_z0"
 fi
 python3 ~/git_repos/pointCollection/scripts/make_mosaic.py  -d $base  -g "*/*.h5"  -p $pad -f $feather -O $base/z0.h5 --in_group z0/ -F  $field misfit_rms misfit_scaled_rms mask cell_area count
