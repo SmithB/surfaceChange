@@ -216,7 +216,7 @@ def ATL14_write2nc(args):
             elif field_attrs[field]['datatype'].startswith('float'):
                 fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
             data = np.nan_to_num(data,nan=fill_value)
-            dsetvar = nc.iable(field,
+            dsetvar = nc.createVariable(field,
                                         nctype[field_attrs[field]['datatype']],
                                         dimensions, zlib=True, least_significant_digit=4,
                                         fill_value=fill_value)
