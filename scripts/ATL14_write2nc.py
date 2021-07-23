@@ -13,6 +13,7 @@ import io, re
 import pointCollection as pc
 import importlib.resources
 from netCDF4 import Dataset
+import matplotlib.pyplot as plt
 
 from ATL11.h5util import create_attribute
 
@@ -169,13 +170,19 @@ def ATL14_write2nc(args):
         field_names = [row['field'] for row in reader if 'ROOT' in row['group']]
 
         # create dimensions
-        for field in ['x', 'y', 'cell_area']: 
+        for field in ['x', 'y', 'ice_mask', 'cell_area']: 
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
             dimensions = tuple(x.strip() for x in dimensions)
-            fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+            if field != 'ice_mask':
+                fill_value = np.finfo(np.dtype(field_attrs[field]['datatype'])).max
+            else:
+                fill_value = np.iinfo(np.dtype(field_attrs[field]['datatype'])).max                
             data = np.array(FH['z0'][dz_dict[field]])
+            if field == 'ice_mask':
+                ice_mask = data
             if field == 'cell_area':
+                data = data*ice_mask
                 data[data==0.0] = np.nan 
                 cell_area_mask = data  # where cell_area is invalid, so are h and h_sigma
             if field == 'x':
@@ -204,7 +211,7 @@ def ATL14_write2nc(args):
                 dsetvar.standard_name = 'projection_y_coordinate'                
         crs_var.GeoTransform = (xll,dx,0,yll,0,dy)
                 
-        for field in [item for item in field_names if item != 'x' and item != 'y' and item != 'cell_area']:
+        for field in [item for item in field_names if item != 'x' and item != 'y' and item != 'ice_mask' and item != 'cell_area']:
             field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field in row['field']}
             dimensions = field_attrs[field]['dimensions'].split(',')
             dimensions = tuple(x.strip() for x in dimensions)
