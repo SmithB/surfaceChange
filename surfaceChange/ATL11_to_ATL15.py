@@ -589,6 +589,44 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
             ds.to_h5(filename, group=key)
     return
 
+def mask_components_by_time(dz):
+    """
+    identify the connected components in the data, mark unconstrained epochs as invalid
+    
+    inputs 
+    dz: pc.grid.data() instance containing fields dz, cell_area
+    outputs:
+    modified inputs
+    """
+    from scipy.ndimage import label
+
+    components, n_components = label(dz.cell_area>0)
+    first_epoch=np.zeros(n_components, dtype=int)+n_components
+    last_epoch=np.zeros(n_components, dtype=int)
+
+    for comp in range(1, n_components):
+        these = components==comp
+        for t_slice in range(dz.shape[2]):
+            sampled=np.any(dz.count[:,:,t_slice][these]>1)
+            if t_slice <= first_epoch[comp]:
+                if sampled:
+                    first_epoch[comp]=t_slice
+            if t_slice >= last_epoch[comp]:
+                if sampled:
+                    last_epoch[comp]=t_slice
+
+    last_epoch_map=np.zeros_like(dz.cell_area)+np.NaN
+    first_epoch_map=np.zeros_like(dz.cell_area)+np.NaN
+
+    for comp in range(1, n_components):
+        last_epoch_map[components==comp]=last_epoch[comp]
+        first_epoch_map[components==comp]=first_epoch[comp]
+
+    for t_slice in range(dz.dz.shape[2]):
+        dz.dz[:,:,t_slice][t_slice < first_epoch_map]=np.NaN
+        dz.dz[:,:,t_slice][t_slice > last_epoch_map]=np.NaN
+
+
 def interp_ds(ds, scale):
     for field in ds.fields:
         delta_xy=[(ds.x[1]-ds.x[0])/scale, (ds.y[1]-ds.y[0])/scale]
