@@ -14,23 +14,27 @@ from datetime import datetime
 
 def write_atl14meta(dst,fileout,ncTemplate):
 
+    # setup basic dictionary of attributes to touch
     root_info={'asas_release':'SET_BY_PGE', 'date_created':'', 'fileName':'', 'geospatial_lat_max':0., \
         'geospatial_lat_min':0., 'geospatial_lon_max':0., 'geospatial_lon_min':0., \
         'netcdfversion':'', 'history':'SET_BY_PGE', \
         'identifier_product_format_version':'SET_BY_PGE', 'time_coverage_duration':0., \
         'time_coverage_end':'', 'time_coverage_start':'', 'uuid':''}
+
+    # copy attributes, dimensions, variables, and groups from template
     with Dataset(ncTemplate,'r') as src:
-        # copy attributes
+    # copy attributes
         for name in src.ncattrs():
             dst.setncattr(name, src.getncattr(name))
     # copy dimensions
         for name, dimension in src.dimensions.items():
             dst.createDimension(
                 name, (len(dimension) if not dimension.isunlimited else None))
-    # copy all file data except for the excluded
+    # copy variables
         for name, variable in src.variables.items():
             x = dst.createVariable(name, variable.datatype, variable.dimensions)
             dst.variables[name][:] = src.variables[name][:]
+    # copy groups, recursively
         for grp in walktree(src):
             for child in grp:
                 dg = dst.createGroup(child.path)
@@ -41,10 +45,12 @@ def write_atl14meta(dst,fileout,ncTemplate):
                 for name, variable in child.variables.items():
                     x = dg.createVariable(name, variable.datatype, variable.dimensions)
                     dg.variables[name][:] = child.variables[name][:]
+    # build ATL11 lineage
     set_lineage(dst,root_info)
+    # lat/lon bounds
     set_geobounds(dst,root_info)
 
-# to get netcdf version netCDF4.__netcdf4libversion__
+    # set file and date attributes
     root_info.update({'netcdfversion': netCDF4.__netcdf4libversion__})
     root_info.update({'uuid': str(uuid.uuid4())})
     dst['METADATA/DatasetIdentification'].setncattr('uuid', str(uuid.uuid4()).encode('ASCII'))
@@ -52,29 +58,20 @@ def write_atl14meta(dst,fileout,ncTemplate):
     dst['METADATA/DatasetIdentification'].setncattr('creationDate', str(datetime.now().date()))
     root_info.update({'fileName': os.path.basename(fileout)})
     dst['METADATA/DatasetIdentification'].setncattr('fileName', os.path.basename(fileout))
-    print(root_info)
+    # apply dict of root level attributes
     for key, keyval in root_info.items():
         dst.setncattr(key, keyval)
 
-def copy_group(dst,child):
-    dg = dst.createGroup(child.path)
-    for name in child.ncattrs():
-        dg.setncattr(name,child.getncattr(name))
-    for name, dimension in child.dimensions.items():
-        dg.createDimension(name, (len(dimension) if not dimension.isunlimited() else None))
-    for name, variable in child.variables.items():
-        x = dg.createVariable(name, variable.datatype, variable.dimensions)
-        dg.variables[name][:] = child.variables[name][:]
-
+# To recursively step through groups
 def walktree(top):
     yield top.groups.values()
     for value in top.groups.values():
         yield from walktree(value)
 
 def set_lineage(dst,root_info):
+# BPJbpj: Need dynamic paths!
     tilepath = '/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/CN/centers'
     atl11path = '/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north'
-    firstATL11 = True
 # list of lineage attributes
     lineage = []
 # regular expression for extracting ATL11 parameters
@@ -87,10 +84,10 @@ def set_lineage(dst,root_info):
             
 # for each file (granule)
           for FILE in cf['/meta'].attrs['input_files'].split(','):
-# extract parameters from filename
+    # extract parameters from filename
             PRD,TRK,GRAN,SCYC,ECYC,RL,VERS,AUX = rx.findall(FILE).pop()
-# extract universally unique identifier from file
             with h5py.File(os.path.join(atl11path,FILE),'r') as fileID:
+        # extract ATL11 attributes from files
                 UUID = fileID['METADATA']['DatasetIdentification'].attrs['uuid'].decode('utf-8')
                 SGEOSEG = fileID['ancillary_data/start_geoseg'][0]
                 EGEOSEG = fileID['ancillary_data/end_geoseg'][0]
@@ -98,6 +95,7 @@ def set_lineage(dst,root_info):
                 EORBIT = fileID['ancillary_data/end_orbit'][0]
                 sdeltatime = fileID['ancillary_data/start_delta_time'][0]
                 edeltatime = fileID['ancillary_data/end_delta_time'][0]
+        # track earliest and latest delta time and UTC
                 if sdeltatime < min_start_delta_time:
                     sUTCtime = fileID['ancillary_data/data_start_utc'][0].decode('utf-8')
                     min_start_delta_time = sdeltatime
@@ -105,15 +103,16 @@ def set_lineage(dst,root_info):
                     eUTCtime = fileID['ancillary_data/data_end_utc'][0].decode('utf-8')
                     max_end_delta_time = edeltatime
 
-                
-# merge attributes as a tuple
+    # merge attributes as a tuple
             attrs = (FILE,PRD,int(TRK),int(GRAN),int(SCYC),int(ECYC),int(VERS),UUID,int(SGEOSEG),
                     int(EGEOSEG),int(SORBIT),int(EORBIT))
-# add attributes to list
+    # add attributes to list, if not already present
             if attrs not in lineage:
                 lineage.append(attrs)
 # reduce to unique lineage attributes (no repeat files)
 #    sorted(set(lineage))
+
+# sort and set lineage attributes
     slineage = sorted(lineage,key=lambda x: (x[0]))
     dst['METADATA/Lineage/ATL11'].setncattr('fileName',list(zip(*slineage))[0])
     dst['METADATA/Lineage/ATL11'].setncattr('shortName',list(zip(*slineage))[1])
@@ -130,13 +129,14 @@ def set_lineage(dst,root_info):
     dst['METADATA/Lineage/ATL11'].setncattr('start_orbit',list(zip(*slineage))[10])
     dst['METADATA/Lineage/ATL11'].setncattr('end_orbit',list(zip(*slineage))[11])
 
-    print('start/end/delta time',sUTCtime,eUTCtime,max_end_delta_time-min_start_delta_time)
+# set time attributes
     root_info.update({'time_coverage_start': sUTCtime})
     root_info.update({'time_coverage_end': eUTCtime})
     root_info.update({'time_coverage_duration': max_end_delta_time-min_start_delta_time})
     dst['/METADATA/Extent'].setncattr('rangeBeginningDateTime',sUTCtime)
     dst['/METADATA/Extent'].setncattr('rangeEndingDateTime',eUTCtime)
 
+# buuild lat/lon geo boundaries
 def set_geobounds(dst,root_info):
     polar_srs=osr.SpatialReference()
     polar_srs.ImportFromEPSG(int(dst['/Polar_Stereographic'].getncattr('spatial_epsg')))
@@ -169,14 +169,9 @@ def set_geobounds(dst,root_info):
     root_info.update({'geospatial_lat_min': latmin})
     root_info.update({'geospatial_lat_max': latmax})
 
-    print('lonmin,lonmax,latmin,latmax:',lonmin,lonmax,latmin,latmax)
-#    if '/orbit_info/bounding_polygon_dim1' not in dst:
-#        dst.createVariable('/orbit_info/bounding_polygon_dim1',
+#    print('lonmin,lonmax,latmin,latmax:',lonmin,lonmax,latmin,latmax)
 
-#    dst.variables['/orbit_info/bounding_polygon_dim1'][:] = np.arange(1,4)
-#    lon1 = dst['/orbit_info'].variables['bounding_polygon_lon1'][:]
-#    print('lon1:',lon1)
-
+# set variables and attributes
     dst['/orbit_info'].variables['bounding_polygon_dim1'][:] = np.arange(1,4+1)
     dst['/orbit_info'].variables['bounding_polygon_lon1'][:] = np.array([lonmin,lonmax,lonmax,lonmin])[:]
     dst['/orbit_info'].variables['bounding_polygon_lat1'][:] = np.array([latmax,latmax,latmin,latmin])[:]
