@@ -15,7 +15,8 @@ import importlib.resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
-from ATL11.h5util import create_attribute
+from ATL14_attrs_meta import write_atl14meta
+#from ATL11.h5util import create_attribute
 
 def ATL14_write2nc(args):    
     dz_dict ={'x':'x',   # ATL14 varname : z0.h5 varname
@@ -235,7 +236,9 @@ def ATL14_write2nc(args):
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
-                
+
+        ncTemplate="atl14_metadata_template.nc"
+        write_atl14meta(nc, fileout, ncTemplate)
 
         FH.close()
    
