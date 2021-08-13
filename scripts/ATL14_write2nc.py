@@ -238,7 +238,7 @@ def ATL14_write2nc(args):
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
 
         ncTemplate="atl14_metadata_template.nc"
-        write_atl14meta(nc, ncTemplate)
+        write_atl14meta(nc, fileout, ncTemplate)
 
         FH.close()
    
