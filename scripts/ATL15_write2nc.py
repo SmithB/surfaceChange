@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import cartopy.crs as ccrs
 import cartopy.feature
+from scipy import stats
 
 def ATL15_write2nc(args):
 
@@ -266,7 +267,7 @@ def ATL15_write2nc(args):
                         if fld == 'cell_area':
                             data[data==0.0] = np.nan 
                             cell_area_mask = data # where cell_area is invalid, so are delta_h and dhdt variables.
-    
+
                         make_dataset(field,fld,data,field_attrs,nc,nc.groups[lags['varigrp'][jj]],nctype,dimScale=False)
 
                 else:  # one of the lags
