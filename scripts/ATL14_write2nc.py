@@ -15,7 +15,8 @@ import importlib.resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
-from ATL11.h5util import create_attribute
+from ATL14_attrs_meta import write_atl14meta
+#from ATL11.h5util import create_attribute
 
 def ATL14_write2nc(args):    
     dz_dict ={'x':'x',   # ATL14 varname : z0.h5 varname
@@ -90,7 +91,11 @@ def ATL14_write2nc(args):
         for sub in ['centers','edges','corners']:
             files = os.listdir(os.path.join(args.base_dir,sub))
             for file in files:
-                tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1))) 
+                try:
+                    tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1)))
+                except Exception as e:
+                    print(f"problem with [ {file} ], skipping")
+                    continue
                 tile_stats['y']['data'].append(int(re.match(r'^.*N(.*)\..*$',file).group(1)))
                 with h5py.File(os.path.join(args.base_dir,sub,file),'r') as h5:
                     tile_stats['N_data']['data'].append( np.sum(h5['data']['three_sigma_edit'][:]) )
@@ -231,7 +236,9 @@ def ATL14_write2nc(args):
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
-                
+
+        ncTemplate="atl14_metadata_template.nc"
+        write_atl14meta(nc, fileout, ncTemplate)
 
         FH.close()
    
