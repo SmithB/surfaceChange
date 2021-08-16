@@ -67,7 +67,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
                         'h_corr','h_corr_sigma','h_corr_sigma_systematic', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
                         'cycle_stats' : {'tide_ocean','dac'},
-                        'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality']}
+                        'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality', 'dem_h']}
     try:
         # catch empty data
         D11_list=pc.geoIndex().from_file(index_file).query_xy_box(
@@ -111,6 +111,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
            'cycle':D11.cycle_number,
            'n_cycles': n_cycles,
            'fit_quality': D11.fit_quality,
+           'dem_h': D11.dem_h,
            'tide_ocean': D11.tide_ocean,
            'dac': D11.dac,
            'delta_time': D11.delta_time,
@@ -156,6 +157,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
             'y':D_x.y,
             'latitude':D_x.latitude,
             'longitude':D_x.longitude,
+            'dem_h':D_x.dem_h,
             'rgt':D_x.rgt,
             'pair':np.zeros_like(D_x.x)+D_x.pair,
             'ref_pt':blank,
@@ -409,6 +411,21 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
     ind_buffer.append(np.flatnonzero(D.along_track==0))
     D.index(np.concatenate(ind_buffer))
 
+def set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol):
+    if DEM_tol is None:
+        return
+
+    if 'three_sigma_edit' not in data.fields:
+        data.assign({'three_sigma_edit':np.ones_like(data.z, dtype=bool)})
+    
+    if DEM_file is None:
+         data.three_sigma_edit &=  (np.abs(data.z-data.dem_h) < DEM_tol)
+    else:
+        data.three_sigma_edit &=  (np.abs(
+                data.z- pc.grid.data()\
+                .from_geotif(DEM_file, bounds=[xy+0.6*np.array([-Wxy, Wxy]) for xy in xy0])\
+                .interp(data.x, data.y)) < DEM_tol)
+    
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
@@ -422,7 +439,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             W_edit=None, \
             out_name=None, \
             compute_E=False, \
-            mask_file=None, \
+            DEM_file=None,\
+            DEM_tol=None,\
+            sigma_tol=None,\
+            mask_file=None,\
             tide_mask_file=None,\
             tide_directory=None,\
             tide_adjustment=False,\
@@ -454,6 +474,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         W_edit: (float) Only data within this distance of the grid center can be editied in the iterative step
         out_name: (string) Name of the output file
         compute_E: (bool) If true, errors will be calculated
+        DEM_file: (string) DEM against which the data will be checked using the DEM_tol parameter
+        DEM_tol: (float) Points different from the DEM by more than this value will be edited
+        sigma_tol: (float) Points with a sigma parameter greater than this value will be edited
         mask_file: (string) File specifying areas for which data should be used and strong constraints should be applied
         tide_mask_file: (string)  File specifying the areas for which the tide model should be calculated
         tide_directory: (string)  Directory containing the tide model data
@@ -488,6 +511,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
         data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
+        if sigma_tol is not None:
+            data.index(data.sigma < sigma_tol)
         N0=data.size
         decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
         print(f'decimated {N0} to {data.size}')
@@ -532,7 +557,9 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         if region=='GL' and mask_file.endswith('.nc'):
             mask_data, tide_mask_data = read_bedmachine_greenland(mask_file, xy0, Wxy)
 
-
+    # new 8/11/2021: use a DEM (if provided) to reject ATL06/11 blunders
+    set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol)
+    
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if (tide_mask_file is not None or tide_mask_data is not None) and reread_dirs is None and calc_error_file is None and data_file is None:
@@ -588,6 +615,44 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
         if isinstance(ds, pc.grid.data):
             ds.to_h5(filename, group=key)
     return
+
+def mask_components_by_time(dz):
+    """
+    identify the connected components in the data, mark unconstrained epochs as invalid
+    
+    inputs 
+    dz: pc.grid.data() instance containing fields dz, cell_area
+    outputs:
+    modified inputs
+    """
+    from scipy.ndimage import label
+
+    components, n_components = label(dz.cell_area>0)
+    first_epoch=np.zeros(n_components, dtype=int)+n_components
+    last_epoch=np.zeros(n_components, dtype=int)
+
+    for comp in range(1, n_components):
+        these = components==comp
+        for t_slice in range(dz.shape[2]):
+            sampled=np.any(dz.count[:,:,t_slice][these]>1)
+            if t_slice <= first_epoch[comp]:
+                if sampled:
+                    first_epoch[comp]=t_slice
+            if t_slice >= last_epoch[comp]:
+                if sampled:
+                    last_epoch[comp]=t_slice
+
+    last_epoch_map=np.zeros_like(dz.cell_area)+np.NaN
+    first_epoch_map=np.zeros_like(dz.cell_area)+np.NaN
+
+    for comp in range(1, n_components):
+        last_epoch_map[components==comp]=last_epoch[comp]
+        first_epoch_map[components==comp]=first_epoch[comp]
+
+    for t_slice in range(dz.dz.shape[2]):
+        dz.dz[:,:,t_slice][t_slice < first_epoch_map]=np.NaN
+        dz.dz[:,:,t_slice][t_slice > last_epoch_map]=np.NaN
+
 
 def interp_ds(ds, scale):
     for field in ds.fields:
@@ -653,6 +718,9 @@ def main(argv):
     parser.add_argument('--N_subset', type=int, default=None, help="number of pieces into which to divide the domain for (cheap) editing iterations.")
     parser.add_argument('--max_iterations', type=int, default=6, help="maximum number of iterations used to edit the data.")
     parser.add_argument('--map_dir','-m', type=str)
+    parser.add_argument('--DEM_file', type=str, help='DEM file to use with the DEM_tol parameter')
+    parser.add_argument('--DEM_tol', type=float, default=50, help='points different from the DEM by more than this value will be edited in the first iteration')
+    parser.add_argument('--sigma_tol', type=float, help='points with sigma greater than this value will be edited')
     parser.add_argument('--mask_file', type=str)
     parser.add_argument('--tide_mask_file', type=str)
     parser.add_argument('--tide_directory', type=str)
@@ -746,6 +814,9 @@ def main(argv):
            error_res_scale=args.error_res_scale, \
            avg_scales=args.avg_scales, \
            verbose=args.verbose, \
+           DEM_file=args.DEM_file, \
+           DEM_tol=args.DEM_tol, \
+           sigma_tol=args.sigma_tol, \
            write_data_only=args.write_data_only)
 
     if S is None:

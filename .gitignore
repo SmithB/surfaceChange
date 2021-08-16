@@ -135,3 +135,13 @@ dmypy.json
 # default argument test scripts
 default_args/ADAPT_*_*.txt
 notebooks/*
+ATL14_test
+ATL14_proc
+masks/Antarctic/BurtonJohnson_rock_mask_125m.tif
+masks/Antarctic/Outcrops_1000m.tif
+masks/Antarctic/Outcrops_100m.tif
+masks/Antarctic/Outcrops_slope.lt.0.5_SIO_shelves_100m.tif
+queues
+region_files
+scratch
+non_repo
