@@ -189,7 +189,7 @@ with open(queue_file,'w') as qh:
                 cmd='%s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
                 if calc_errors:
                     cmd += '; '+cmd+' --calc_error_for_xy'
-                qh.write(f'source activate {environment}; '+cmd+'\n')
+                qh.write(f'source activate {environment}; '+cmd+'; echo COMPLETE\n')
 print("Wrote commands to "+queue_file)
 
 
