@@ -12,3 +12,5 @@
 --Release=001
 --version=01
 --ATL11_release=004
+--DEM_tol=50
+--sigma_tol=8
