@@ -3,7 +3,7 @@
 source activate IS2
 
 defaults_file=$1
-rm -rf par_run
+rm -rf par_run/logs/* par_run/queue/* par_run/running/* par_run/done/* par_run/last_task par_run/boss_status*
 
 [ -z "$2" ] || region_string="-R $2"
     
