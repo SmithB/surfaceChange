@@ -227,6 +227,9 @@ def apply_tides(D, xy0, W,
     if tide_mask_file is not None and tide_mask_data is None:
         tide_mask = pc.grid.data().from_geotif(tide_mask_file,
                         bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+        if tide_mask.shape is None:
+            return
+
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     if verbose:
         print(f"\t\t{np.mean(is_els)*100}% shelf data")
@@ -537,9 +540,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
         if sigma_tol is not None:
             data.index(data.sigma < sigma_tol)
-        N0=data.size
-        decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
-        print(f'decimated {N0} to {data.size}')
+        if data is not None:
+            N0=data.size
+            decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
+            print(f'decimated {N0} to {data.size}')
 
     if data is None:
         print("No data present for region, returning.")
