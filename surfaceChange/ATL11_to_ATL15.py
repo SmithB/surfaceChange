@@ -118,7 +118,6 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
            'time':D11.delta_time/24/3600/365.25+2018,
            'n_slope':D11.n_slope,
            'e_slope':D11.e_slope,
-           'time':D11.delta_time/24/3600/365.25+2018,
            'along_track':np.ones_like(D11.x, dtype=bool)})]
 
         if len(D11.ref_pt) == 0:
