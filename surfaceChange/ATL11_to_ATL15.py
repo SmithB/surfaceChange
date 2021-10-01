@@ -225,8 +225,11 @@ def apply_tides(D, xy0, W,
 
     # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
     if tide_mask_file is not None and tide_mask_data is None:
-        tide_mask = pc.grid.data().from_geotif(tide_mask_file,
+        try:
+            tide_mask = pc.grid.data().from_geotif(tide_mask_file,
                         bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+        except IndexError:
+            return None
         if tide_mask.shape is None:
             return
 
@@ -262,10 +265,13 @@ def apply_tides(D, xy0, W,
                 np.logical_not(inmodel) & is_els.ravel() & D.along_track)
         else:
             # read adjustment mask and calculate indices
-            adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
-                bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
-            adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
-                np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
+            try:
+                adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
+                    bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+                adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
+                    np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
+            except IndexError:
+                adjustment_indices = []
         # make a global reference point number combining ref_pt, rgt and pair
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
