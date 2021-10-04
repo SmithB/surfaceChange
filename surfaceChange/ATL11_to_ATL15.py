@@ -544,7 +544,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
         data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
-        if sigma_tol is not None:
+        if sigma_tol is not None and data is not None:
             data.index(data.sigma < sigma_tol)
         if data is not None:
             N0=data.size
