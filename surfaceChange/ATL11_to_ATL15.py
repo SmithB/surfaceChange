@@ -118,7 +118,6 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
            'time':D11.delta_time/24/3600/365.25+2018,
            'n_slope':D11.n_slope,
            'e_slope':D11.e_slope,
-           'time':D11.delta_time/24/3600/365.25+2018,
            'along_track':np.ones_like(D11.x, dtype=bool)})]
 
         if len(D11.ref_pt) == 0:
@@ -128,12 +127,14 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
         if D_x is None:
             continue
-        # fit_quality D11 applies to all cycles, but is mapped only to some specific
-        # cycle.
-        temp=np.nanmax(D_x.fit_quality[:,:,0], axis=1)
+        # fit_quality and dem_h D11 apply to all cycles, but are mapped only to some specific
+        # cycle of the reference cycle
+        temp={'fit_quality':np.nanmax(D_x.fit_quality[:,:,0], axis=1),
+              'dem_h':np.nanmax(D_x.dem_h[:,:,0], axis=1)}       
         for cycle in range(D_x.shape[1]):
-            D_x.fit_quality[:,cycle,1]=temp
-
+            D_x.fit_quality[:,cycle,1]=temp['fit_quality']
+            D_x.dem_h[:,cycle,1]=temp['dem_h']
+        
         D_x.get_xy(proj4_string=SRS_proj4)
 
         good=np.isfinite(D_x.h_corr)[:,0:2,1].ravel()
@@ -224,8 +225,14 @@ def apply_tides(D, xy0, W,
 
     # the tide mask should be 1 for non-grounded points (ice shelves), zero otherwise
     if tide_mask_file is not None and tide_mask_data is None:
-        tide_mask = pc.grid.data().from_geotif(tide_mask_file,
+        try:
+            tide_mask = pc.grid.data().from_geotif(tide_mask_file,
                         bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+        except IndexError:
+            return None
+        if tide_mask.shape is None:
+            return
+
     is_els=tide_mask.interp(D.x, D.y) > 0.5
     if verbose:
         print(f"\t\t{np.mean(is_els)*100}% shelf data")
@@ -258,10 +265,13 @@ def apply_tides(D, xy0, W,
                 np.logical_not(inmodel) & is_els.ravel() & D.along_track)
         else:
             # read adjustment mask and calculate indices
-            adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
-                bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
-            adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
-                np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
+            try:
+                adjustment_mask = pc.grid.data().from_geotif(tide_adjustment_file,
+                    bounds=[np.array([-0.6, 0.6])*W+xy0[0], np.array([-0.6, 0.6])*W+xy0[1]])
+                adjustment_indices, = np.nonzero((adjustment_mask.interp(D.x, D.y) > 0.5) &
+                    np.isfinite(D.tide_ocean) & is_els.ravel() & D.along_track)
+            except IndexError:
+                adjustment_indices = []
         # make a global reference point number combining ref_pt, rgt and pair
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
@@ -411,20 +421,43 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
     ind_buffer.append(np.flatnonzero(D.along_track==0))
     D.index(np.concatenate(ind_buffer))
 
-def set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol):
+def set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol, W_med=None):
+    '''
+    Check data against DEM
+
+    inputs:
+        data (pc.data): input data
+        xy0  (list of floats) : tile center
+        Wxy (float) : tile width
+        DEM_file (string) : filename for DEM (if None, data.dem_h is used)
+        DEM_tol (float) : tolerance for test
+        W_med (float) : distance over which the DEM is corrected to the median of the data
+
+    outputs:  None (modifies data.three_sigma_edit)
+    '''
+    
     if DEM_tol is None:
         return
 
+    if W_med is None:
+        W_med=Wxy/8
     if 'three_sigma_edit' not in data.fields:
         data.assign({'three_sigma_edit':np.ones_like(data.z, dtype=bool)})
     
     if DEM_file is None:
-         data.three_sigma_edit &=  (np.abs(data.z-data.dem_h) < DEM_tol)
+        r_DEM = data.z-data.dem_h
     else:
-        data.three_sigma_edit &=  (np.abs(
-                data.z- pc.grid.data()\
+         r_DEM = data.z - pc.grid.data()\
                 .from_geotif(DEM_file, bounds=[xy+0.6*np.array([-Wxy, Wxy]) for xy in xy0])\
-                .interp(data.x, data.y)) < DEM_tol)
+                .interp(data.x, data.y)
+        
+    good = np.ones_like(data.z, dtype=bool)   
+    for x0 in np.arange(xy0[0]-Wxy/2, xy0[0]+Wxy/2, W_med):
+        for y0 in np.arange(xy0[1]-Wxy/2, xy0[1]+Wxy/2, W_med):
+            ii = (data.x>=x0) & (data.x <= x0+W_med) &\
+                (data.y>=y0) & (data.y <= y0+W_med)
+            good[ii] &= (np.abs(r_DEM[ii] - np.nanmedian(r_DEM[ii])) < DEM_tol)
+    data.three_sigma_edit &= good
     
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
@@ -513,9 +546,10 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
         if sigma_tol is not None:
             data.index(data.sigma < sigma_tol)
-        N0=data.size
-        decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
-        print(f'decimated {N0} to {data.size}')
+        if data is not None:
+            N0=data.size
+            decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
+            print(f'decimated {N0} to {data.size}')
 
     if data is None:
         print("No data present for region, returning.")
