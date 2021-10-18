@@ -121,41 +121,37 @@ def ATL14_write2nc(args):
         for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
             for key in tile_stats.keys():
                 # fact helps convert x,y in km to m
-                if 'x' in key or 'y' in key:
-                    fact=1000
-                else:
-                    fact=1
-                tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
-                tile_stats[key]['data'][i] * fact
-                tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+                if 'x' not in key and 'y' not in key:
+                    tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
+                    tile_stats[key]['data'][i]
+                    tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
 
-        # make dimensions
-        tilegrp.createDimension('ytile',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
-        ytile = tilegrp.createVariable('ytile', np.dtype('int32'), ('ytile',))
-        ytile[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) 
-        ytile.units = 'km'
-        ytile.long_name = 'y (N) value in tile file name'
+        # make dimensions, fill them as variables
+        tilegrp.createDimension('y',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
+        y = tilegrp.createVariable('y', np.dtype('int32'), ('y',))
+        y[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) * 1000 # convert from km to meter
+        y.units = 'meter'
+        y.description = tile_stats['y']['description']
+        y.grid_mapping = 'Polar_Stereographic'
         
-        tilegrp.createDimension('xtile',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
-        xtile = tilegrp.createVariable('xtile', np.dtype('int32'), ('xtile',))
-        xtile[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)
-        xtile.units = 'km'
-        xtile.long_name = 'x (E) value in tile file name'
+        tilegrp.createDimension('x',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
+        x = tilegrp.createVariable('x', np.dtype('int32'), ('x',))
+        x[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40) * 1000
+        x.units = 'meter'
+        x.description = tile_stats['x']['description']
+        x.grid_mapping = 'Polar_Stereographic'
 
         # create tile_stats/ variables in .nc file
         for key in tile_stats.keys():
-            if 'x' == key or 'y' == key or 'N_data' == key:
-                dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('ytile','xtile'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
-                if 'x' == key:
-                    dsetvar.standard_name = 'projection_x_coordinate'
-                if 'y' == key:
-                    dsetvar.standard_name = 'projection_y_coordinate'
-            else:
-                dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('ytile','xtile'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
-                dsetvar.least_significant_digit = 4
-            dsetvar[:] = tile_stats[key]['mapped'][:]
-            dsetvar.setncattr('description',tile_stats[key]['description'])
-            dsetvar.setncattr('grid_mapping','Polar_Stereographic')
+            if 'x' not in key and 'y' not in key:
+                if 'N_data' == key: 
+                    dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('y','x'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
+                else:
+                    dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('y','x'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
+                    dsetvar.least_significant_digit = 4
+                dsetvar[:] = tile_stats[key]['mapped'][:]
+                dsetvar.setncattr('description',tile_stats[key]['description'])
+                dsetvar.setncattr('grid_mapping','Polar_Stereographic')
 
         # get handle for input file with ROOT and height_change variables.
         FH = h5py.File(args.base_dir.rstrip('/')+'/z0.h5','r')
@@ -236,9 +232,9 @@ def ATL14_write2nc(args):
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
-
+        print('line 235',args.ATL11_lineage_dir)
         ncTemplate="atl14_metadata_template.nc"
-        write_atl14meta(nc, fileout, ncTemplate)
+        write_atl14meta(nc, fileout, ncTemplate, args)
 
         FH.close()
    
@@ -260,6 +256,8 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
+    parser.add_argument('-list11','--ATL11_lineage_dir', type=str, help='directory in which to look for ATL11 .h5 filenames')
+    parser.add_argument('-tiles','--tiles_dir', type=str, help='directory in which to look for tile .h5 files')
 
     args, _=parser.parse_known_args()
     print('args:',args)
