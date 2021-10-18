@@ -232,9 +232,9 @@ def ATL14_write2nc(args):
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
-
-#        ncTemplate="atl14_metadata_template.nc"
-#        write_atl14meta(nc, fileout, ncTemplate)
+        print('line 235',args.ATL11_lineage_dir)
+        ncTemplate="atl14_metadata_template.nc"
+        write_atl14meta(nc, fileout, ncTemplate, args)
 
         FH.close()
    
@@ -256,6 +256,8 @@ if __name__=='__main__':
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
+    parser.add_argument('-list11','--ATL11_lineage_dir', type=str, help='directory in which to look for ATL11 .h5 filenames')
+    parser.add_argument('-tiles','--tiles_dir', type=str, help='directory in which to look for tile .h5 files')
 
     args, _=parser.parse_known_args()
     print('args:',args)

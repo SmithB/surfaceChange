@@ -12,7 +12,7 @@ import glob
 import uuid
 from datetime import datetime
 
-def write_atl14meta(dst,fileout,ncTemplate):
+def write_atl14meta(dst,fileout,ncTemplate,args):
 
     # setup basic dictionary of attributes to touch
     root_info={'asas_release':'SET_BY_PGE', 'date_created':'', 'fileName':'', 'geospatial_lat_max':0., \
@@ -46,7 +46,7 @@ def write_atl14meta(dst,fileout,ncTemplate):
                     x = dg.createVariable(name, variable.datatype, variable.dimensions)
                     dg.variables[name][:] = child.variables[name][:]
     # build ATL11 lineage
-    set_lineage(dst,root_info)
+    set_lineage(dst,root_info,args)
     # lat/lon bounds
     set_geobounds(dst,root_info)
 
@@ -68,10 +68,14 @@ def walktree(top):
     for value in top.groups.values():
         yield from walktree(value)
 
-def set_lineage(dst,root_info):
+def set_lineage(dst,root_info,args):
 # BPJbpj: Need dynamic paths!
-    tilepath = '/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/CN/centers'
-    atl11path = '/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north'
+#    tilepath = '/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/CN/centers'
+#    atl11path = '/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north'
+    tilepath = args.tiles_dir
+    print('line 76',tilepath)
+    print()
+    atl11path = args.ATL11_lineage_dir
 # list of lineage attributes
     lineage = []
 # regular expression for extracting ATL11 parameters
@@ -80,6 +84,8 @@ def set_lineage(dst,root_info):
     min_start_delta_time = np.finfo(np.float64()).max
     max_end_delta_time = np.finfo(np.float64()).tiny
     for tile in glob.iglob(os.path.join(tilepath,'*.h5')):
+        print('line 85', tilepath,tile)
+        print()
         with h5py.File(tile,'r') as cf:
             
 # for each file (granule)
