@@ -1,4 +1,5 @@
---ATL11_index=/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north/index/GeoIndex.h5
+
+--ATL11_index=/home/besmith4/nobackup/ATL14_processing//ATL11_004/north/index/GeoIndex.h5
 --mask_file=RGI_reduced/07_rgi60_Svalbard_reduced.db
 --Hemisphere=1
 --region=SV

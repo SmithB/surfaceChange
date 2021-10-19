@@ -11,16 +11,17 @@ class tile_picker(object):
     def __init__(self, thedir, handles=None, W=8.e4, map_data=None, **map_args):
         
         tile_re=re.compile('E(.*)_N(.*).h5')
-        self.xy_file_dict = {tuple(1000*np.array([*map(int, tile_re.search(ff).groups())])):ff 
-                             for ff in glob.glob(thedir+'/*.h5') }
-        self.xy_tiles = np.array(list(self.xy_file_dict.keys()))
         
+        self.xy_file_dict = {tuple(1000*np.array([*map(int, tile_re.search(ff).groups())])):ff 
+                             for ff in glob.glob(thedir+'/*/E*_N*.h5') }
+        self.xy_tiles = np.array(list(self.xy_file_dict.keys()))
+        print(self.xy_tiles.shape)
+
         if handles is not None and len(handles):
             self.handles=handles
         else:
             self.handles={}
             self.__init_new_ui__(map_data, map_args)
-        self.fig=fig
         self.messages=[[]]
         self.last_pt=[[]]
         self.last_file=''
@@ -35,11 +36,11 @@ class tile_picker(object):
     
     def __init_new_ui__(self, map_data, map_args):
         if 'figure' not in self.handles:
-            fig=plt.figure()
+            self.handles['figure']=plt.figure()
         if 'tiles_ax' not in self.handles:
-            self.handles['tiles_ax'], self.handles['messages']=fig.subplots(1,2)
+            self.handles['tiles_ax'], self.handles['messages']=self.handles['figure'].subplots(1,2)
         if map_data is not None:
-            map_data.show(axes=self.handles['tiles_ax'], **map_args)
+            map_data.show(ax=self.handles['tiles_ax'], **map_args)
         self.handles['tiles_ax'].plot(self.xy_tiles[:,0], self.xy_tiles[:,1],'k.')
             
     def buttondown(self, event):
@@ -62,7 +63,7 @@ class tile_picker(object):
                 self.messages += [f'searching by dist for {xy0}']
                 this = np.argmin((self.xy_tiles[:,0]-xy0[0])**2 + (self.xy_tiles[:,1]-xy0[1])**2)
                 xy_tile = tuple(self.xy_tiles[this,:]) 
-            self.last_file=xy_file_dict[xy_tile]
+            self.last_file=self.xy_file_dict[xy_tile]
             self.handles['tiles_ax'].plot(xy0[0], xy0[1],'x')
             self.handles['tiles_ax'].plot(xy_tile[0], xy_tile[1],'r.')
 
