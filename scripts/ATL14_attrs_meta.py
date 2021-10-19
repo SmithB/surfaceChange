@@ -22,6 +22,8 @@ def write_atl14meta(dst,fileout,ncTemplate,args):
         'time_coverage_end':'', 'time_coverage_start':'', 'uuid':''}
 
     # copy attributes, dimensions, variables, and groups from template
+    if 'ATL15' in os.path.basename(fileout):
+        ncTemplate = ncTemplate.replace('atl14','atl15')
     with Dataset(ncTemplate,'r') as src:
     # copy attributes
         for name in src.ncattrs():
@@ -48,13 +50,15 @@ def write_atl14meta(dst,fileout,ncTemplate,args):
     # build ATL11 lineage
     set_lineage(dst,root_info,args)
     # lat/lon bounds
-    set_geobounds(dst,root_info)
+    set_geobounds(dst,fileout,root_info)
 
     # set file and date attributes
     root_info.update({'netcdfversion': netCDF4.__netcdf4libversion__})
     root_info.update({'uuid': str(uuid.uuid4())})
     dst['METADATA/DatasetIdentification'].setncattr('uuid', str(uuid.uuid4()).encode('ASCII'))
-    root_info.update({'date_created': str(datetime.now().date())})
+    dateval = str(datetime.now().date())
+    dateval = dateval+'T'+str(datetime.now().time())+'Z'
+    root_info.update({'date_created': dateval})
     dst['METADATA/DatasetIdentification'].setncattr('creationDate', str(datetime.now().date()))
     root_info.update({'fileName': os.path.basename(fileout)})
     dst['METADATA/DatasetIdentification'].setncattr('fileName', os.path.basename(fileout))
@@ -143,9 +147,13 @@ def set_lineage(dst,root_info,args):
     dst['/METADATA/Extent'].setncattr('rangeEndingDateTime',eUTCtime)
 
 # buuild lat/lon geo boundaries
-def set_geobounds(dst,root_info):
+def set_geobounds(dst,fileout,root_info):
+    if 'ATL14' in os.path.basename(fileout):
+        georoot = ''
+    else:
+        georoot = '/delta_h'
     polar_srs=osr.SpatialReference()
-    polar_srs.ImportFromEPSG(int(dst['/Polar_Stereographic'].getncattr('spatial_epsg')))
+    polar_srs.ImportFromEPSG(int(dst[georoot+'/Polar_Stereographic'].getncattr('spatial_epsg')))
     ll_srs=osr.SpatialReference()
     ll_srs.ImportFromEPSG(4326)
     if hasattr(osr,'OAMS_TRADITIONAL_GIS_ORDER'):
@@ -153,8 +161,8 @@ def set_geobounds(dst,root_info):
         polar_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     ct=osr.CoordinateTransformation(polar_srs, ll_srs)
 
-    xmin,xmax = (np.min(dst['/x']),np.max(dst['/x']))
-    ymin,ymax = (np.min(dst['/y']),np.max(dst['/y']))
+    xmin,xmax = (np.min(dst[georoot+'/x']),np.max(dst[georoot+'/x']))
+    ymin,ymax = (np.min(dst[georoot+'/y']),np.max(dst[georoot+'/y']))
     N = 2
     dx = (xmax-xmin)/N
     dy = (ymax-ymin)/N
