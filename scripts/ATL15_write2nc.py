@@ -15,6 +15,7 @@ import matplotlib as mpl
 import cartopy.crs as ccrs
 import cartopy.feature
 from scipy import stats
+from ATL14_attrs_meta import write_atl14meta
 
 def ATL15_write2nc(args):
 
@@ -301,6 +302,8 @@ def ATL15_write2nc(args):
                 except:
                     pass
         
+            ncTemplate="atl14_metadata_template.nc"
+            write_atl14meta(nc, fileout, ncTemplate)
 
     return fileout
     
