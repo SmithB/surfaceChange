@@ -1,5 +1,5 @@
 -W=80000 
--t=2018.75,2021.00
+-t=2018.75,2021.50
 -g=100,1000,0.25
 --dzdt_lags=1,4,8
 --E_d3zdx2dt=0.00005 
@@ -8,7 +8,7 @@
 --reference_epoch=5
 --avg_scales=40000,20000,10000
 --max_iterations=6
---cycles=0310
+--cycles=0311
 --Release=001
 --version=01
 --ATL11_release=004
