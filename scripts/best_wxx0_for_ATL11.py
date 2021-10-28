@@ -34,7 +34,7 @@ def safe_interp(x, x0_in, y0_in, loglog=False):
         pass
     return y
 
-def read_ATL11_file(file, mask_file, num_pairs=3):
+def read_ATL11_file(file, mask_file, num_pairs=3, EPSG=3413):
     
     if num_pairs==3:
         pairs=[1, 2, 3]
@@ -48,7 +48,7 @@ def read_ATL11_file(file, mask_file, num_pairs=3):
             with h5py.File(file,'r') as h5f:
                 qs=np.array(h5f[f'/pt{pair}/ref_surf/fit_quality'])
             D11.assign({'ref_surf_quality':qs})
-            D11.get_xy(EPSG=3413)
+            D11.get_xy(EPSG=EPSG)
             XR=np.array([np.nanmin(D11.x), np.nanmax(D11.x)])
             YR=np.array([np.nanmin(D11.y), np.nanmax(D11.y)])
             mask=pc.grid.data().from_geotif(mask_file, bounds=[XR, YR]).interp(D11.x[:,0], D11.y[:,0]) > 0.5
@@ -161,12 +161,18 @@ W=float(sys.argv[2])
 mask_file=sys.argv[3]
 out_file=sys.argv[4]
 
-if len(sys.argv)>5:
-    num_pairs=sys.argv[5]
-else:
+try: 
+    EPSG=int(sys.argv[5])
+except IndexError:
+    EPSG=3413
+try: 
+    num_pairs=int(sys.argv[6])
+except IndexError:
     num_pairs=3
 
-D11s=read_ATL11_file(ATL11_file, mask_file, num_pairs)
+print([ATL11_file, mask_file, num_pairs, EPSG])
+    
+D11s=read_ATL11_file(ATL11_file, mask_file, num_pairs=num_pairs, EPSG=EPSG)
 L_interps=[]
 for D11 in D11s:
     if D11.size > 0:
@@ -174,4 +180,5 @@ for D11 in D11s:
     
     if len(list(L_interp.keys())) > 0:
         L_interps += [L_interp]
+        
 save_L_interp(L_interps, out_file)
