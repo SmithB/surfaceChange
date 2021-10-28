@@ -138,10 +138,15 @@ if mask_ext in ('.tif'):
     
     tif_1km=defaults['--mask_file'].replace('100m','1km').replace('125m','1km')
     temp=pc.grid.data().from_geotif(tif_1km)
-        
+    
     mask_G=pad_mask_canvas(temp, 200)
-    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/1000)+1], dtype='bool'))
-    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/1000)+1, 1], dtype='bool'))
+    # downsample the mask to 4 km
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, 5], dtype='bool'))
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([5, 1], dtype='bool'))
+    mask_G=mask_G[2::4, 2::4]
+    # blur the mask to three times the half tile
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([1, int(3*Hxy/4000)+1], dtype='bool'))
+    mask_G.z=snd.binary_dilation(mask_G.z, structure=np.ones([int(3*Hxy/4000)+1, 1], dtype='bool'))
     x0=np.unique(np.round(mask_G.x/Hxy)*Hxy)
     y0=np.unique(np.round(mask_G.y/Hxy)*Hxy)
     x0, y0 = np.meshgrid(x0, y0)
