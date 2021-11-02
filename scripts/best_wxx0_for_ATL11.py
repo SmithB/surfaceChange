@@ -69,7 +69,7 @@ def save_L_interp(L_interps, file):
         D_list +=[pc.data().from_dict(D)]
     pc.data().from_list(D_list).to_h5(file)
 
-def find_best_wxx0(D11, W_domain, mask_file):
+def find_best_wxx0(D11, W_domain, mask_file, DEBUG=False):
 
     scale_vals=np.array([ 0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100, 300])
 
@@ -85,7 +85,7 @@ def find_best_wxx0(D11, W_domain, mask_file):
     XR=np.nanmean(D11.x_atc)+np.array([-1, 1])*W['x']/2
     ctr={'x':XR[0]+W['x']/2., 'y':0., 't':0.}
     # define the grid spacing
-    spacing={'z0':100, 'dz':100, 'dt':.1}
+    spacing={'z0':50, 'dz':100, 'dt':.1}
 
     # reference points are every 60 m, but every third reference point
     # is returned.
@@ -97,9 +97,15 @@ def find_best_wxx0(D11, W_domain, mask_file):
         N_good=np.sum(np.isfinite(D11.h_corr[ii,:]), axis=0)
         if np.max(N_good)<0.9*dN:
             continue
-        bc=np.argmax(N_good)
+        max_pts=np.max(N_good)
+        good_enough = np.argwhere(N_good >= max_pts-5)
+        if len(good_enough) ==1:
+            bc=good_enough[0]
+        else:
+            # choose the smoothest cycle that has enough points
+            sigma_dz = np.nanmedian(np.abs(np.diff(D11.h_corr[ii,good_enough], axis=1)), axis=1)
+            bc=good_enough[np.argmin(sigma_dz)]
         nb=N_good[bc]
-
         xy_ctr=[np.nanmean(D11.x[ii, bc]), np.nanmean(D11.y[ii, bc]), np.nanmean(D11.h_corr[ii, bc])]
 
         D=pc.data().from_dict({'x':D11.x_atc[ii,bc], 'y':np.zeros_like(ii, dtype=float),'z':D11.h_corr[ii,bc],\
@@ -137,6 +143,10 @@ def find_best_wxx0(D11, W_domain, mask_file):
             L_curve[key] = np.array(L_curve[key])
         try:         
             N0 = safe_interp(1, L_curve['sigma_hat_s'], L_curve['N'], loglog=True)
+            
+            if DEBUG and np.nanmin(L_curve['sigma_hat_s'] > 1):
+                return D, ii, bc, pt0, L_curve
+            
             w_for_r_of_1 = safe_interp(1, L_curve['sigma_hat_s'], L_curve['wzz0'], loglog=True)
             w_for_r_10pct_above_min = \
                 safe_interp(1.1*L_curve['sigma_hat_s'].min(), L_curve['sigma_hat_s'], L_curve['wzz0'], loglog=True)
@@ -156,29 +166,34 @@ def find_best_wxx0(D11, W_domain, mask_file):
     return L_interp
 
 
-ATL11_file=sys.argv[1]
-W=float(sys.argv[2])
-mask_file=sys.argv[3]
-out_file=sys.argv[4]
+def main():
+    ATL11_file=sys.argv[1]
+    W=float(sys.argv[2])
+    mask_file=sys.argv[3]
+    out_file=sys.argv[4]
 
-try: 
-    EPSG=int(sys.argv[5])
-except IndexError:
-    EPSG=3413
-try: 
-    num_pairs=int(sys.argv[6])
-except IndexError:
-    num_pairs=3
+    try: 
+        EPSG=int(sys.argv[5])
+    except IndexError:
+        EPSG=3413
+    try: 
+        num_pairs=int(sys.argv[6])
+    except IndexError:
+        num_pairs=3
 
-print([ATL11_file, mask_file, num_pairs, EPSG])
-    
-D11s=read_ATL11_file(ATL11_file, mask_file, num_pairs=num_pairs, EPSG=EPSG)
-L_interps=[]
-for D11 in D11s:
-    if D11.size > 0:
-        L_interp = find_best_wxx0(D11, W, mask_file)
-    
-    if len(list(L_interp.keys())) > 0:
-        L_interps += [L_interp]
-        
-save_L_interp(L_interps, out_file)
+    print([ATL11_file, mask_file, num_pairs, EPSG])
+
+    D11s=read_ATL11_file(ATL11_file, mask_file, num_pairs=num_pairs, EPSG=EPSG)
+    L_interps=[]
+    for D11 in D11s:
+        if D11.size > 0:
+            L_interp = find_best_wxx0(D11, W, mask_file)
+
+        if len(list(L_interp.keys())) > 0:
+            L_interps += [L_interp]
+
+    save_L_interp(L_interps, out_file)
+
+if __name__=='__main__':
+    if __name__=='__main__':
+        main()
