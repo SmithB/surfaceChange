@@ -520,6 +520,8 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         error_res_scale: (float) If errors are calculated, the grid resolution will be coarsened by this factor
         calc_error_file: (string) Output file for which errors will be calculated.
         verbose: (bool) Print progress of processing run
+    outputs:
+        S: dict containing fit output
     '''
     SRS_proj4, EPSG=get_SRS_info(hemisphere)
 
@@ -544,7 +546,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         data = reread_data_from_fits(xy0, Wxy, reread_dirs, template='E%d_N%d.h5')
     else:
         data, file_list = read_ATL11(xy0, Wxy, ATL11_index, SRS_proj4, sigma_geo=sigma_geo)
-        if sigma_tol is not None:
+        if sigma_tol is not None and data is not None:
             data.index(data.sigma < sigma_tol)
         if data is not None:
             N0=data.size
@@ -808,13 +810,13 @@ def main(argv):
         args.out_name=args.calc_error_file
         if not os.path.isfile(args.out_name):
             print(f"{args.out_name} not found, returning")
-            return
+            return 1
 
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
         if not os.path.isfile(args.out_name):
             print(f"{args.out_name} not found, returning")
-            return
+            return 1
 
     if args.error_res_scale is not None:
         if args.calc_error_file is not None:
@@ -853,24 +855,33 @@ def main(argv):
            sigma_tol=args.sigma_tol, \
            write_data_only=args.write_data_only)
 
+    status=0
     if S is None:
-        return
+        # indicates not enough data, but typically not a failure
+        return status
     if args.write_data_only:
         S['data'].to_h5(args.out_name, group='data')
-        return
-
+        return status
+    status=1
     if args.calc_error_file is None and 'm' in S and len(S['m'].keys()) > 0:
         # if this isn't an error-calculation run, save the gridded fit data to the output file
         save_fit_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
+        status=0
     elif 'E' in S and len(S['E'].keys()) > 0:
         # If this is an error-calculation run, save the errors to the output file
         S['E']['sigma_z0']=interp_ds(S['E']['sigma_z0'], args.error_res_scale[0])
         for field in ['sigma_dz'] + [ f'sigma_dzdt_lag{lag}' for lag in args.dzdt_lags ]:
             S['E'][field] = interp_ds( S['E'][field], args.error_res_scale[1] )
         save_errors_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
+        status=0
     print(f"done with {args.out_name}")
+    return status
+
 if __name__=='__main__':
-    main(sys.argv)
+    status=main(sys.argv)
+    if status is None:
+        status=1
+    sys.exit(status)
 
 #-160000 -1800000 --centers @/home/ben/git_repos/surfaceChange/default_args/test.txt
 #-160000 -1800000 --centers @/home/ben/git_repos/surfaceChange/default_args_z03xlooser_dt10xlooser_errors.txt -c /Volumes/ice2/ben/ATL14_test/IS2//U07/z03xlooser_dt10xlooser_40km/centers/E-160_N-1800.h5
