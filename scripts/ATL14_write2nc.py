@@ -84,7 +84,10 @@ def ATL14_write2nc(args):
                       'N_bias': { 'data': [], 'description':'number of bias values solved for', 'mapped':np.array(())},
                       'RMS_d2z0dx2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second spatial derivative of z0', 'mapped':np.array(())},
                       'RMS_d2zdt2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz', 'mapped':np.array(())},
-                      'RMS_d2zdx2dt' : { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz/dt', 'mapped':np.array(())}
+                      'RMS_d2zdx2dt' : { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz/dt', 'mapped':np.array(())},
+                      'sigma_xx0' : { 'data': [], 'description':'Weighting values for the constraint equations on the second spatial derivatives of the DEM', 'mapped':np.array(())},
+                      'sigma_tt' : { 'data': [], 'description':'Weighting values for the constraint equations on the second temporal derivatives of the surface height', 'mapped':np.array(())},
+                      'sigma_xxt' : { 'data': [], 'description':'Weighting values for the constraint equations on the second spatial derivatives of the height-change rate', 'mapped':np.array(())}
                       }
         
         # work through the tiles in all three subdirectories
@@ -105,10 +108,13 @@ def ATL14_write2nc(args):
                     tile_stats['RMS_d2z0dx2']['data'].append( h5['RMS']['grad2_z0'][()] )
                     tile_stats['RMS_d2zdt2']['data'].append( h5['RMS']['d2z_dt2'][()] )
                     tile_stats['RMS_d2zdx2dt']['data'].append( h5['RMS']['grad2_dzdt'][()] )
+                    tile_stats['sigma_xx0']['data'].append( h5['E_RMS']['d2z0_dx2'][()] )
+                    tile_stats['sigma_tt']['data'].append( h5['E_RMS']['d2z_dt2'][()] )
+                    tile_stats['sigma_xxt']['data'].append( h5['E_RMS']['d3z_dx2dt'][()] )
                     
         # establish output grids
         for key in tile_stats.keys():
-            if 'x' == key or 'y' == key or 'N_data' == key:  #integers
+            if key == 'x' or key == 'y' or key == 'N_data':  #integers
                 tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
                                                        len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
                                                        dtype=int)
@@ -121,7 +127,7 @@ def ATL14_write2nc(args):
         for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
             for key in tile_stats.keys():
                 # fact helps convert x,y in km to m
-                if 'x' not in key and 'y' not in key:
+                if key != 'x' and key != 'y':
                     tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
                     tile_stats[key]['data'][i]
                     tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
@@ -143,8 +149,8 @@ def ATL14_write2nc(args):
 
         # create tile_stats/ variables in .nc file
         for key in tile_stats.keys():
-            if 'x' not in key and 'y' not in key:
-                if 'N_data' == key: 
+            if key != 'x' and key != 'y':
+                if key == 'N_data': 
                     dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('y','x'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
                 else:
                     dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('y','x'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
