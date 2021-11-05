@@ -49,11 +49,11 @@ if not required_keys_present:
     sys.exit(1)
 
 if '--mask_dir' in defaults:
-    defaults['--mask_file']=os.path.join(defaults['--mask_dir'], defaults['--mask_file'])   
-    if '--tide_mask_file' in defaults and not os.path.isfile(defaults['--tide_mask_file']):
-        defaults['--tide_mask_file']=os.path.join(defaults['--mask_dir'], defaults['--tide_mask_file'])
+    for key in ['--mask_file','--d2z0_file','--tide_mask_file']:
+        if key in defaults and not os.path.isfile(defaults[key]):
+            defaults[key] = os.path.join(defaults['--mask_dir'], defaults[key])   
     defaults.pop('--mask_dir', None)
-    
+
 
 if defaults['--Hemisphere']==1 or defaults['--Hemisphere']=="1":
     hemisphere_name='north'
@@ -68,6 +68,10 @@ region_dir=os.path.join(hemi_dir, defaults['--region'])
 for this in [release_dir, hemi_dir, region_dir]:
     if not os.path.isdir(this):
         os.mkdir(this)
+
+# ATL11 index may be specified relative to ATL1r_root
+if '--ATL11_index' in defaults and not os.path.isfile(defaults['--ATL11_index']):
+    defaults['--ATL11_index'] = os.path.join(defaults['--ATL14_root'], defaults['--ATL11_index'])
 
 # if ATL11 release is specified and ATL11 geoindex is not specified, guess the location
 if '--ATL11_index' not in defaults and '--ATL11_release' in defaults:
