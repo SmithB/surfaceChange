@@ -825,9 +825,10 @@ def main(argv):
 
     if not os.path.isdir(args.base_directory):
         os.mkdir(args.base_directory)
-    if not os.path.isdir(dest_dir):
+    try:
         os.mkdir(dest_dir)
-
+    except FileExistsError:
+        pass
     S=ATL11_to_ATL15(args.xy0, ATL11_index=args.ATL11_index,
            Wxy=args.Width, E_RMS=E_RMS, t_span=args.time_span, spacing=spacing, \
            sigma_geo=args.sigma_geo, \
