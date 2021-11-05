@@ -4,3 +4,4 @@
 --tide_model=CATS2008
 --Hemisphere=-1
 --region=AA
+--d2z0_file=Antarctic/AA_Ed2z0dx2.tif
