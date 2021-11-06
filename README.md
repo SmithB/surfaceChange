@@ -4,7 +4,7 @@ These are instructions for how to create netCDF formated files of the ICESat-2 g
 * ATL14 (Antarctic and Greenland ice-sheet surface height)
 * ATL15 (Antarctic and Greenland ice-sheet surface height change)
 
-Files ATL14_write2nc.py and ATL15_write2nc.py are located in the scripts subdirectory.  They require an ascii input file, containing directory paths, and parameters for domain (x,t) and averaging. etc. as shown [here](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
+Files ATL14_write2nc.py and ATL15_write2nc.py are located in the scripts subdirectory.  They require an ascii input file, containing directory paths, and parameters for domain (x,t) and averaging, etc. as shown [here](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
 
 Command line syntax:
 
