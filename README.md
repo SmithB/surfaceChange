@@ -12,11 +12,19 @@ Command line syntax:
 
 \>> python3 \<pathto\>/ATL14_write2nc.py @\<pathto\>/input_args.txt
 
-### Description of the arguments listed in the input_args.txt
+### Description of the arguments listed in the input_args.txt that are used for writing netCDF files
 
-The data files to be converted are in hdf5 format. The heights for the ATL14 product are in z0.h5. 
-The surface change values for the ATL15 product are in several files, with name starting with dz and 
-can include resolution and time lag. These files are to be found in the path in the -b argument. 
+-b        base path to height and surface change data files. This is also where the output file will be written.
+These are the hdf5 files to be converted netCDF. This directory should contain z0.h5 for ATL14 product. The surface change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename. 
+
+-tiles    path to center tile files
+
+-list11   path to ATL11 files used to make the data files in -b. The ATL11 filenames are included in the metadata.
+
+--region  two character abbreviation for region name. Used to determine gridding projection parameters and part of output file name
+--cycles  four digit integer indicating beginning cycle and ending cycle
+--Release three digit integer indicating release of ATL11 data 
+--version two digit integer indicating version of software (?)
 
 
 
