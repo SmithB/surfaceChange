@@ -6,7 +6,7 @@ These are instructions for how to create netCDF formated files of the ICESat-2 g
 
 The scripts are called ATL14_write2nc.py and ATL15_write2nc.py.  They require an ascii input file, containing directory paths, and parameters for domain (x,t) and averaging. etc. 
 
-To run An [example](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428.js) is here.
+To run An [example](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428) is here.
 
 Command line syntax:
 \>> python3 pathto/ATL14_write2nc.py @pathto/input_args_rr.txt
