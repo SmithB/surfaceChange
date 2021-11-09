@@ -23,13 +23,16 @@ Command line syntax:
 -list11   path to ATL11 files used to make the data files in -b. The ATL11 filenames are included in the metadata.
 
 --region  two character abbreviation for region name. Used to determine gridding projection parameters and part of output file name
+
 --cycles  four digit integer indicating beginning cycle and ending cycle
+
 --Release  three digit integer indicating release of ATL11 data 
+
 --version  two digit integer indicating version of software (?)
 
 ### Output file formats
 
 ATL14_rr_c1c2_100m_REL_VS.nc    where rr is the region, c1 is beginning cycle, c2 is ending cycle, REL is release and VS is version
-ATL15_rr_c1c2_xxkm_REL_VS.nc    xx indicates grid spacing in km, including 1, 10, 20, 40km
+ATL15_rr_c1c2_xxkm_REL_VS.nc    xx indicates grid spacing in km, Currently four output files including 1, 10, 20, 40km
 
 
