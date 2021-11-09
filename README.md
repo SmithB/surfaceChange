@@ -35,4 +35,15 @@ Command line syntax:
 ATL14_rr_c1c2_100m_REL_VS.nc    where rr is the region, c1 is beginning cycle, c2 is ending cycle, REL is release and VS is version
 ATL15_rr_c1c2_xxkm_REL_VS.nc    where xx indicates grid spacing in km. Currently there are four output files including 1, 10, 20, 40km grid spacing.
 
+### Size estimates of output file
+
+|   | Greenland | Svalbard |
+|----|-----------|----------|
+|ATL14_rr_c1c2_100m_REL_VS.nc | 1050 Mb   |  28 Mb|
+|ATL15_rr_c1c2_01km_REL_VS.nc |    |  9.2 Mb|
+|ATL15_rr_c1c2_10km_REL_VS.nc |    |  0.31 Mb|
+|ATL15_rr_c1c2_20km_REL_VS.nc |    |  0.23 Mb|
+|ATL15_rr_c1c2_40km_REL_VS.nc |    |  0.20 Mb|
+
+
 
