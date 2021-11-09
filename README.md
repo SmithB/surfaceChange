@@ -7,7 +7,7 @@ over land ice:
 
 Files ATL14_write2nc.py and ATL15_write2nc.py are located in the surfaceChange/scripts subdirectory.  
 They require an ascii input file, containing directory paths, and parameters for domain (x,t) and 
-averaging, etc., [input_args.txt](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
+averaging, [input_args.txt](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
 
 Command line syntax:
 
