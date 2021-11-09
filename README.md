@@ -23,7 +23,7 @@ Command line syntax:
 
 -list11   path to ATL11 files used to make the data files in -b. The ATL11 filenames are included in the metadata.
 
---region  two character abbreviation for region name. Used to determine gridding projection parameters and is part of output file name
+--region  two character abbreviation for region name. Used to determine gridding projection parameters and is part of output file name.
 
 --cycles  four digit integer indicating beginning cycle and ending cycle
 
