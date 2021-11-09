@@ -1,12 +1,13 @@
 ## Scripts for Creating Tiled *h* and *dh/dt* Products from ICESat-2 Altimetry Data
 
-These are instructions for how to create netCDF formated files of the ICESat-2 gridded height products over land ice:
+These are instructions for how to create netCDF formated files of the ICESat-2 gridded height products
+over land ice:
 * ATL14 (Antarctic and Greenland ice-sheet surface height)
 * ATL15 (Antarctic and Greenland ice-sheet surface height change)
 
 Files ATL14_write2nc.py and ATL15_write2nc.py are located in the surfaceChange/scripts subdirectory.  
 They require an ascii input file, containing directory paths, and parameters for domain (x,t) and 
-averaging, etc. as shown [here](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
+averaging, etc., [input_args.txt](https://gist.github.com/suzanne64/9483ec8cb8f77200dac2062b3a6da428).
 
 Command line syntax:
 
@@ -14,8 +15,8 @@ Command line syntax:
 
 ### Description of the arguments listed in the input_args.txt that are used for writing netCDF files
 
--b        base path to height and surface change data files. This is also where the output file will be written.
-These are the hdf5 files to be converted netCDF. This directory should contain z0.h5 for ATL14 product. The surface change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename. 
+-b        base path to height and surface change data files. These are the hdf5 files to be converted netCDF. This directory should contain z0.h5 for ATL14 product. The surface change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename. This is also where the output file will be written.
+
 
 -tiles    path to center tile files
 
