@@ -33,6 +33,6 @@ Command line syntax:
 ### Output file formats
 
 ATL14_rr_c1c2_100m_REL_VS.nc    where rr is the region, c1 is beginning cycle, c2 is ending cycle, REL is release and VS is version
-ATL15_rr_c1c2_xxkm_REL_VS.nc    xx indicates grid spacing in km, Currently four output files including 1, 10, 20, 40km
+ATL15_rr_c1c2_xxkm_REL_VS.nc    where xx indicates grid spacing in km. Currently there are four output files including 1, 10, 20, 40km grid spacing.
 
 
