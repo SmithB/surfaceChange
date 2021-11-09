@@ -18,14 +18,14 @@ Command line syntax:
 -b        base path to height and surface change data files. These are the hdf5 files to be converted netCDF. This directory should contain z0.h5 for ATL14 product. The surface change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename. This is also where the output file will be written.
 
 
--tiles    path to center tile files
+-tiles    path to center tile files
 
--list11   path to ATL11 files used to make the data files in -b. The ATL11 filenames are included in the metadata.
+-list11   path to ATL11 files used to make the data files in -b. The ATL11 filenames are included in the metadata.
 
---region  two character abbreviation for region name. Used to determine gridding projection parameters and part of output file name
---cycles  four digit integer indicating beginning cycle and ending cycle
---Release three digit integer indicating release of ATL11 data 
---version two digit integer indicating version of software (?)
+--region  two character abbreviation for region name. Used to determine gridding projection parameters and part of output file name
+--cycles  four digit integer indicating beginning cycle and ending cycle
+--Release  three digit integer indicating release of ATL11 data 
+--version  two digit integer indicating version of software (?)
 
 
 
