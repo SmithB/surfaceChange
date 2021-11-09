@@ -27,5 +27,9 @@ Command line syntax:
 --Release  three digit integer indicating release of ATL11 data 
 --version  two digit integer indicating version of software (?)
 
+### Output file formats
+
+ATL14_rr_c1c2_100m_REL_VS.nc    where rr is the region, c1 is beginning cycle, c2 is ending cycle, REL is release and VS is version
+ATL15_rr_c1c2_xxkm_REL_VS.nc    xx indicates grid spacing in km, including 1, 10, 20, 40km
 
 
