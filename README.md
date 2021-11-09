@@ -11,7 +11,7 @@ averaging, etc., [input_args.txt](https://gist.github.com/suzanne64/9483ec8cb8f7
 
 Command line syntax:
 
-\>> python3 \<pathto\>/ATL14_write2nc.py @\<pathto\>/input_args.txt
+\>> python3 \<pathto\>/ATL14_write2nc.py @\<pathto\>/input_args.txt   
 \>> python3 \<pathto\>/ATL15_write2nc.py @\<pathto\>/input_args.txt
 
 ### Description of the arguments listed in the input_args.txt that are used for writing netCDF files
