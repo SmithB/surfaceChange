@@ -16,7 +16,7 @@ Command line syntax:
 
 ### Description of the arguments listed in the input_args.txt that are used for writing netCDF files
 
--b        base path to height and surface height change data files. These are the hdf5 files to be converted netCDF. This directory should contain z0.h5 for the ATL14 product. The surface height change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename, ie. dz_10km_lag1.h5. This is also where the output netCDF files will be written.
+-b        base path to height and surface height change data files. These are the hdf5 files to be consolidated and converted to netCDF. This directory should contain z0.h5 for the ATL14 product. The surface height change values for the ATL15 product are in several files, with names starting with dz and which can include resolution and time lag in the filename, ie. dz_10km_lag1.h5. This is also where the output netCDF files will be written.
 
 
 -tiles    path to center tile files. It is assumed edge and corner tiles are at same level, in ../edges and ../corners.
