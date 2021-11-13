@@ -20,6 +20,7 @@ import traceback
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
 import pyTMD
+import scipy.interpolate
 import scipy.optimize
 import pdb
 
@@ -253,6 +254,7 @@ def apply_tides(D, xy0, W,
         D.assign({'tide_adj_scale': np.ones_like(D.x)})
         D.tide_adj_scale[is_els==0]=0.0
         tide_adj_sigma = np.zeros_like(D.x) + np.inf
+        tide_adj_valid = np.zeros_like(D.x,dtype=bool)
         # adjust indices that are extrapolated of within a defined mask
         if not tide_adjustment_file:
             # check if point is within model domain
@@ -366,9 +368,21 @@ def apply_tides(D, xy0, W,
             # copy adjustments and estimated uncertainties
             D.tide_adj_scale[ii[imin]] = adj
             tide_adj_sigma[ii[imin]] = adj_sigma
-        # multiply tides by adjustments
-        ii, = np.nonzero((D.tide_adj_scale < 1) & (tide_adj_sigma < 1))
-        D.tide_ocean[ii] *= D.tide_adj_scale[ii]
+            tide_adj_valid[ii[imin]] = True
+        # interpolate where invalid or with large errors
+        i1, = np.nonzero((D.tide_adj_scale < 1) & (tide_adj_sigma < 1))
+        i2, = np.nonzero(np.logical_not(tide_adj_valid) |
+            (D.tide_adj_scale >= 1) | (tide_adj_sigma >= 1))
+        D.tide_adj_scale[i2] = scipy.interpolate.griddata(
+            (D.x[i1].ravel(), D.y[i1].ravel()),
+            D.tide_adj_scale[i1].ravel()
+            (D.x[i2].ravel(), D.y[i2].ravel()),
+            fill_value=np.nan,
+            method="linear",
+        )
+        # multiply tides and DAC by adjustments
+        D.tide_ocean[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
+        D.dac[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
     # replace invalid tide and dac values
     D.tide_ocean[is_els==0] = 0
     D.dac[is_els==0] = 0
