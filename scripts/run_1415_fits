@@ -9,7 +9,7 @@ rm -rf par_run/logs/* par_run/queue/* par_run/running/* par_run/done/* par_run/l
     
 for step in centers edges corners; do
 
-    queue_file=`make_ATL1415_queue.py $step $defaults_file $region_string  | grep Wrote | awk '{print $NF}'`
+    queue_file=`make_ATL1415_queue.py $step $defaults_file $region_string --skip_errors | grep Wrote | awk '{print $NF}'`
 
 
 
