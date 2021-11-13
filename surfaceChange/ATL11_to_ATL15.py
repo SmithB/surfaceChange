@@ -617,6 +617,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
                      mask_file=mask_file, mask_data=mask_data, mask_scale={0:10, 1:1},
+                     converge_tol_frac_edit=0.001,
                      error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
     S['file_list'] = file_list
@@ -730,9 +731,9 @@ def main(argv):
 
     import argparse
     parser=argparse.ArgumentParser(\
-        description="function to fit icebridge data with a smooth elevation-change model", \
+        description="function to fit ICESat-2 data with a smooth elevation-change model", \
         fromfile_prefix_chars="@")
-    parser.add_argument('xy0', type=float, nargs=2, help="fit center location")
+    parser.add_argument('--xy0', type=float, nargs=2, help="fit center location")
     parser.add_argument('--ATL11_index', type=str, required=True, help="ATL11 index file")
     parser.add_argument('--Width','-W',  type=float, help="Width of grid")
     parser.add_argument('--time_span','-t', type=str, help="time span, first year,last year AD (comma separated, no spaces)")
@@ -799,18 +800,21 @@ def main(argv):
         reread_dirs += [args.base_directory+'/edges']
         dest_dir +='/corners'
 
-    if args.out_name is None:
-        args.out_name=dest_dir + '/E%d_N%d.h5' % (args.xy0[0]/1e3, args.xy0[1]/1e3)
-
     if args.calc_error_file is not None:
         dest_dir=os.path.dirname(args.calc_error_file)
         # get xy0 from the filename
         re_match=re.compile('E(.*)_N(.*).h5').search(args.calc_error_file)
         args.xy0=[float(re_match.group(ii))*1000 for ii in [1, 2]]
         args.out_name=args.calc_error_file
+        with h5py.File(args.calc_error_file) as h5f:
+            args.E_d2z0dx2 = h5f['E_RMS']['d2z0_dx2'][()]
+            E_RMS['d2z0_dx2'] = args.E_d2z0dx2
         if not os.path.isfile(args.out_name):
             print(f"{args.out_name} not found, returning")
             return 1
+
+    if args.out_name is None:
+        args.out_name=dest_dir + '/E%d_N%d.h5' % (args.xy0[0]/1e3, args.xy0[1]/1e3)
 
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
