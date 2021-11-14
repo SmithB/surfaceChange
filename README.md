@@ -41,10 +41,10 @@ ATL15_rr_c1c2_xxkm_rel_vv.nc    where xx indicates grid spacing in km. Curre
 |   | Greenland | Svalbard |
 |----|-----------|----------|
 |ATL14_rr_c1c2_100m_rel_vv.nc | 1050 Mb   |  28 Mb|
-|ATL15_rr_c1c2_01km_rel_vv.nc |    |  9.2 Mb|
-|ATL15_rr_c1c2_10km_rel_vv.nc |    |  0.31 Mb|
-|ATL15_rr_c1c2_20km_rel_vv.nc |    |  0.23 Mb|
-|ATL15_rr_c1c2_40km_rel_vv.nc |    |  0.20 Mb|
+|ATL15_rr_c1c2_01km_rel_vv.nc |  343 Mb  |  9.2 Mb|
+|ATL15_rr_c1c2_10km_rel_vv.nc |    3.5 Mb|  0.31 Mb|
+|ATL15_rr_c1c2_20km_rel_vv.nc |    1.4 Mb|  0.23 Mb|
+|ATL15_rr_c1c2_40km_rel_vv.nc |    0.8 Mb|  0.20 Mb|
 
 
 
