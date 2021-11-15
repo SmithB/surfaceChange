@@ -11,7 +11,7 @@ from scipy import stats
 import sys, os, h5py, glob, csv
 import io, re
 import pointCollection as pc
-import importlib.resources
+import pkg_resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
@@ -168,9 +168,9 @@ def ATL14_write2nc(args):
         else:
             print('Reading file:',args.base_dir.rstrip('/')+'/z0.h5')
             
-        with importlib.resources.path('surfaceChange','resources') as pp:
-            with open(os.path.join(pp,'ATL14_output_attrs.csv'),'r', encoding='utf-8-sig') as attrfile:
-                reader=list(csv.DictReader(attrfile))
+        attrFile = pkg_resources.resource_filename('surfaceChange','resources/ATL14_output_attrs.csv') 
+        with open(attrFile,'r', encoding='utf-8-sig') as attrfile:
+            reader=list(csv.DictReader(attrfile))
     
         attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
 
@@ -238,8 +238,8 @@ def ATL14_write2nc(args):
             for attr in attr_names:
                 dsetvar.setncattr(attr,field_attrs[field][attr])
             dsetvar.setncattr('grid_mapping','Polar_Stereographic')
-        print('line 235',args.ATL11_lineage_dir)
-        ncTemplate="atl14_metadata_template.nc"
+
+        ncTemplate = pkg_resources.resource_filename('surfaceChange','resources/atl14_metadata_template.nc')
         write_atl14meta(nc, fileout, ncTemplate, args)
 
         FH.close()

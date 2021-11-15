@@ -8,7 +8,7 @@ Created on Fri Jan 24 10:45:47 2020
 import numpy as np
 import  os, h5py, csv, re
 import ast
-import importlib.resources
+import pkg_resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -85,9 +85,9 @@ def ATL15_write2nc(args):
     avgs = ['','_10km','_20km','_40km']
 
     # open data attributes file
-    with importlib.resources.path('surfaceChange','resources') as pp:
-        with open(os.path.join(pp,'ATL15_output_attrs.csv'),'r', encoding='utf-8-sig') as attrfile:
-            reader=list(csv.DictReader(attrfile))
+    attrFile = pkg_resources.resource_filename('surfaceChange','resources/ATL15_output_attrs.csv')
+    with open(attrFile,'r',encoding='utf-8-sig') as attrfile:
+        reader=list(csv.DictReader(attrfile))
 
     attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
     
@@ -308,7 +308,7 @@ def ATL15_write2nc(args):
                 except:
                     pass
         
-            ncTemplate="atl14_metadata_template.nc"
+            ncTemplate=pkg_resources.resource_filename('surfaceChange','resources/atl15_metadata_template.nc')
             write_atl14meta(nc, fileout, ncTemplate, args)
 
     return fileout
