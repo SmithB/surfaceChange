@@ -122,6 +122,7 @@ def ATL15_write2nc(args):
             # work through the tiles in all three subdirectories
             for sub in ['centers','edges','corners']:
                 files = os.listdir(os.path.join(args.base_dir,sub))
+                files = [f for f in files if f.endswith('.h5')]
                 for file in files:
                     try:
                         tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1)))

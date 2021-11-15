@@ -77,8 +77,8 @@ def set_lineage(dst,root_info,args):
 #    tilepath = '/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/CN/centers'
 #    atl11path = '/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north'
     tilepath = args.tiles_dir
-    print('line 76',tilepath)
-    print()
+#    print('line 76',tilepath)
+#    print()
     atl11path = args.ATL11_lineage_dir
 # list of lineage attributes
     lineage = []
@@ -88,8 +88,8 @@ def set_lineage(dst,root_info,args):
     min_start_delta_time = np.finfo(np.float64()).max
     max_end_delta_time = np.finfo(np.float64()).tiny
     for tile in glob.iglob(os.path.join(tilepath,'*.h5')):
-        print('line 85', tilepath,tile)
-        print()
+#        print('line 85', tilepath,tile)
+#        print()
         with h5py.File(tile,'r') as cf:
             
 # for each file (granule)
