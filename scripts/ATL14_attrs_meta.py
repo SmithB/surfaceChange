@@ -77,8 +77,8 @@ def set_lineage(dst,root_info,args):
 #    tilepath = '/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/CN/centers'
 #    atl11path = '/att/nobackup/project/icesat-2/ATL14_processing/ATL11_rel004/north'
     tilepath = args.tiles_dir
-    print('line 76',tilepath)
-    print()
+#    print('line 76',tilepath)
+#    print()
     atl11path = args.ATL11_lineage_dir
 # list of lineage attributes
     lineage = []
