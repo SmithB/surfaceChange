@@ -186,7 +186,7 @@ with open(queue_file,'w') as qh:
                 queued.append(tuple(xy1))
             out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
             if not os.path.isfile(out_file):
-                cmd='%s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
+                cmd='%s --xy0 %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
                 if calc_errors:
                     cmd += '; '+cmd+' --calc_error_for_xy'
                 qh.write(f'source activate {environment}; '+cmd+'; echo COMPLETE\n')
