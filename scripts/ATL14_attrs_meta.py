@@ -88,8 +88,8 @@ def set_lineage(dst,root_info,args):
     min_start_delta_time = np.finfo(np.float64()).max
     max_end_delta_time = np.finfo(np.float64()).tiny
     for tile in glob.iglob(os.path.join(tilepath,'*.h5')):
-        print('line 85', tilepath,tile)
-        print()
+#        print('line 85', tilepath,tile)
+#        print()
         with h5py.File(tile,'r') as cf:
             
 # for each file (granule)
