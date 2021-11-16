@@ -16,6 +16,7 @@ import pointCollection as pc
 import re
 import sys
 import h5py
+import logging
 import traceback
 import matplotlib.pyplot as plt
 from surfaceChange.reread_data_from_fits import reread_data_from_fits
@@ -43,7 +44,7 @@ def manual_edits(D):
 
     #N.B.  This fixes a glitch on the east coast of Greenland:
     if np.max(np.abs(np.array([np.mean(D.x), np.mean(D.y)])-np.array([480000, -1360000])))<1.e5:
-        print("EDITING TRACK 1092 CYCLE 1")
+        logging.info("EDITING TRACK 1092 CYCLE 1")
         bad |= ((D.rgt==1092) & (D.cycle==1))
 
     D.index(~bad)
@@ -131,11 +132,11 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
         # fit_quality and dem_h D11 apply to all cycles, but are mapped only to some specific
         # cycle of the reference cycle
         temp={'fit_quality':np.nanmax(D_x.fit_quality[:,:,0], axis=1),
-              'dem_h':np.nanmax(D_x.dem_h[:,:,0], axis=1)}       
+              'dem_h':np.nanmax(D_x.dem_h[:,:,0], axis=1)}
         for cycle in range(D_x.shape[1]):
             D_x.fit_quality[:,cycle,1]=temp['fit_quality']
             D_x.dem_h[:,cycle,1]=temp['dem_h']
-        
+
         D_x.get_xy(proj4_string=SRS_proj4)
 
         good=np.isfinite(D_x.h_corr)[:,0:2,1].ravel()
@@ -176,7 +177,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
     try:
         D=pc.data().from_list(D_list+XO_list).ravel_fields()
         D.index(np.isfinite(D.z))
-        
+
     except ValueError:
         # catch empty data
         return None, file_list
@@ -195,8 +196,7 @@ def apply_tides(D, xy0, W,
                 sigma_tolerance=0.5,
                 extrapolate=True,
                 cutoff=200,
-                EPSG=None,
-                verbose=False):
+                EPSG=None):
 
 
     '''
@@ -235,10 +235,9 @@ def apply_tides(D, xy0, W,
             return
 
     is_els=tide_mask.interp(D.x, D.y) > 0.5
-    if verbose:
-        print(f"\t\t{np.mean(is_els)*100}% shelf data")
-        print(f"\t\ttide model: {tide_model}")
-        print(f"\t\ttide directory: {tide_directory}")
+    logging.info(f"\t\t{np.mean(is_els)*100}% shelf data")
+    logging.info(f"\t\ttide model: {tide_model}")
+    logging.info(f"\t\ttide directory: {tide_directory}")
     # extrapolate tide estimate beyond model bounds
     # extrapolation cutoff is in kilometers
     if np.any(is_els.ravel()):
@@ -278,8 +277,8 @@ def apply_tides(D, xy0, W,
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
         u_ref_pt = np.unique(global_ref_pt[adjustment_indices])
-        print(f"\t\ttide adjustment: {len(u_ref_pt)} refs") if verbose else None
-        print(f"\t\t{tide_adjustment_file}") if tide_adjustment_file else None
+        logging.info(f"\t\ttide adjustment: {len(u_ref_pt)} refs")
+        logging.info(f"\t\t{tide_adjustment_file}") if tide_adjustment_file else None
         # calculate temporal fit of tide points with model phases
         # only for reference points that are extrapolated
         for ref_pt in u_ref_pt:
@@ -351,8 +350,7 @@ def apply_tides(D, xy0, W,
                 Hinv = np.linalg.inv(np.dot(DMAT.T,DMAT))
             except:
                 # print exceptions
-                if verbose:
-                    traceback.print_exc()
+                logging.debug(traceback.format_exc())
                 # continue to next global reference point
                 # and use original tide values
                 continue
@@ -375,7 +373,7 @@ def apply_tides(D, xy0, W,
             (D.tide_adj_scale >= 1) | (tide_adj_sigma >= 1))
         D.tide_adj_scale[i2] = scipy.interpolate.griddata(
             (D.x[i1].ravel(), D.y[i1].ravel()),
-            D.tide_adj_scale[i1].ravel()
+            D.tide_adj_scale[i1].ravel(),
             (D.x[i2].ravel(), D.y[i2].ravel()),
             fill_value=np.nan,
             method="linear",
@@ -416,7 +414,7 @@ def decimate_data(D, N_target, W_domain,  W_sub, x0, y0):
     for bin0 in np.unique(ij_bin):
         ii = np.flatnonzero((ij_bin==bin0) & D.along_track)
         this_rho = len(ii) / (W_sub**2)
-        #print(f'bin0={bin0}, this_rho={this_rho}, ratio={this_rho/rho_target}')
+        #logging.info(f'bin0={bin0}, this_rho={this_rho}, ratio={this_rho/rho_target}')
         if this_rho < rho_target:
             # if there aren't too many points in this bin, continue
             ind_buffer += [ii]
@@ -449,7 +447,7 @@ def set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol, W_med=None)
 
     outputs:  None (modifies data.three_sigma_edit)
     '''
-    
+
     if DEM_tol is None:
         return
 
@@ -457,22 +455,22 @@ def set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol, W_med=None)
         W_med=Wxy/8
     if 'three_sigma_edit' not in data.fields:
         data.assign({'three_sigma_edit':np.ones_like(data.z, dtype=bool)})
-    
+
     if DEM_file is None:
         r_DEM = data.z-data.dem_h
     else:
          r_DEM = data.z - pc.grid.data()\
                 .from_geotif(DEM_file, bounds=[xy+0.6*np.array([-Wxy, Wxy]) for xy in xy0])\
                 .interp(data.x, data.y)
-        
-    good = np.ones_like(data.z, dtype=bool)   
+
+    good = np.ones_like(data.z, dtype=bool)
     for x0 in np.arange(xy0[0]-Wxy/2, xy0[0]+Wxy/2, W_med):
         for y0 in np.arange(xy0[1]-Wxy/2, xy0[1]+Wxy/2, W_med):
             ii = (data.x>=x0) & (data.x <= x0+W_med) &\
                 (data.y>=y0) & (data.y <= y0+W_med)
             good[ii] &= (np.abs(r_DEM[ii] - np.nanmedian(r_DEM[ii])) < DEM_tol)
     data.three_sigma_edit &= good
-    
+
 def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
             t_span=[2019.25, 2020.5], \
             spacing={'z0':2.5e2, 'dz':5.e2, 'dt':0.25},  \
@@ -547,7 +545,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
 
     # initialize file_list to empty in case we're rereading the data
     file_list=[]
-    
+
     # figure out where to get the data
     if data_file is not None:
         data=pc.data().from_h5(data_file, group='data')
@@ -565,21 +563,21 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
         if data is not None:
             N0=data.size
             decimate_data(data, 1.2e6, Wxy, 5000, xy0[0], xy0[1] )
-            print(f'decimated {N0} to {data.size}')
+            logging.info(f'decimated {N0} to {data.size}')
 
     if data is None:
-        print("No data present for region, returning.")
+        logging.critical("No data present for region, returning.")
         return None
 
     # if any manual edits are needed, make them here:
     manual_edits(data)
 
     if data is None or data.size < 10:
-        print("Fewer than 10 data points, returning")
+        logging.critical("Fewer than 10 data points, returning")
         return None
 
     if data.time.max()-data.time.min() < 80./365.:
-        print("time span too short, returning.")
+        logging.critical("time span too short, returning.")
         return None
 
     if edge_pad is not None:
@@ -609,7 +607,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
 
     # new 8/11/2021: use a DEM (if provided) to reject ATL06/11 blunders
     set_three_sigma_edit_with_DEM(data, xy0, Wxy, DEM_file, DEM_tol)
-    
+
     # apply the tides if a directory has been provided
     # NEW 2/19/2021: apply the tides only if we have not read the data from first-round fits.
     if (tide_mask_file is not None or tide_mask_data is not None) and reread_dirs is None and calc_error_file is None and data_file is None:
@@ -620,7 +618,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                     tide_model=tide_model,
                     tide_adjustment=tide_adjustment,
                     tide_adjustment_file=tide_adjustment_file,
-                    EPSG=EPSG, verbose=verbose)
+                    EPSG=EPSG)
 
     if write_data_only:
         return {'data':data}
@@ -669,8 +667,8 @@ def save_fit_to_file(S,  filename, dzdt_lags=None, reference_epoch=0):
 def mask_components_by_time(dz):
     """
     identify the connected components in the data, mark unconstrained epochs as invalid
-    
-    inputs 
+
+    inputs
     dz: pc.grid.data() instance containing fields dz, cell_area
     outputs:
     modified inputs
@@ -724,13 +722,13 @@ def save_errors_to_file( S, filename, dzdt_lags=None, reference_epoch=None, grid
 
     for key, ds in S['E'].items():
         if isinstance(ds, pc.grid.data):
-            print(key)
+            logging.info(key)
             ds.to_h5(filename, group=key.replace('sigma_',''))
 
     with h5py.File(filename,'r+') as h5f:
         for key in S['E']['sigma_bias']:
             if 'bias/sigma' in h5f and  key in h5f['/bias/sigma']:
-                print(f'{key} already exists in sigma_bias')
+                logging.info(f'{key} already exists in sigma_bias')
                 h5f['/bias/sigma/'+key][...]=S['E']['sigma_bias'][key]
             else:
                 h5f.create_dataset('/bias/sigma/'+key, data=S['E']['sigma_bias'][key])
@@ -787,6 +785,10 @@ def main(argv):
     parser.add_argument('--write_data_only', action='store_true', help='save data without processing')
     args, unknown=parser.parse_known_args()
 
+    # create logger
+    loglevel = logging.INFO if args.verbose else logging.CRITICAL
+    logging.basicConfig(level=loglevel)
+
     args.grid_spacing = [np.float64(temp) for temp in args.grid_spacing.split(',')]
     args.dzdt_lags = [np.int64(temp) for temp in args.dzdt_lags.split(',')]
     args.time_span = [np.float64(temp) for temp in args.time_span.split(',')]
@@ -823,13 +825,13 @@ def main(argv):
         args.xy0=[float(re_match.group(ii))*1000 for ii in [1, 2]]
         args.out_name=args.calc_error_file
         if not os.path.isfile(args.out_name):
-            print(f"{args.out_name} not found, returning")
+            logging.critical(f"{args.out_name} not found, returning")
             return 1
 
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
         if not os.path.isfile(args.out_name):
-            print(f"{args.out_name} not found, returning")
+            logging.critical(f"{args.out_name} not found, returning")
             return 1
 
     if args.error_res_scale is not None:
@@ -888,7 +890,7 @@ def main(argv):
             S['E'][field] = interp_ds( S['E'][field], args.error_res_scale[1] )
         save_errors_to_file(S, args.out_name, dzdt_lags=args.dzdt_lags, reference_epoch=args.reference_epoch)
         status=0
-    print(f"done with {args.out_name}")
+    logging.info(f"done with {args.out_name}")
     return status
 
 if __name__=='__main__':
