@@ -41,7 +41,7 @@ def ATL14_write2nc(args):
         nc.setncattr('GDAL_AREA_OR_POINT','Area')
         nc.setncattr('Conventions','CF-1.6')
 
-        if args.region in ['AK','CN','CS','GL','IS','SV','RU']:
+        if args.region in ['AK','CN','CS','GL','IS','SV','RA']:
             crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
             crs_var.standard_name = 'Polar_Stereographic'
             crs_var.grid_mapping_name = 'polar_stereographic'
