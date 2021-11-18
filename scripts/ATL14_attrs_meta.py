@@ -87,40 +87,41 @@ def set_lineage(dst,root_info,args):
 # For each tile:
     min_start_delta_time = np.finfo(np.float64()).max
     max_end_delta_time = np.finfo(np.float64()).tiny
+    ATL11_files=set()
     for tile in glob.iglob(os.path.join(tilepath,'*.h5')):
-#        print('line 85', tilepath,tile)
-#        print()
-        with h5py.File(tile,'r') as cf:
-            
-# for each file (granule)
-          for FILE in cf['/meta'].attrs['input_files'].split(','):
-    # extract parameters from filename
-            PRD,TRK,GRAN,SCYC,ECYC,RL,VERS,AUX = rx.findall(FILE).pop()
-            with h5py.File(os.path.join(atl11path,FILE),'r') as fileID:
-        # extract ATL11 attributes from files
-                UUID = fileID['METADATA']['DatasetIdentification'].attrs['uuid'].decode('utf-8')
-                SGEOSEG = fileID['ancillary_data/start_geoseg'][0]
-                EGEOSEG = fileID['ancillary_data/end_geoseg'][0]
-                SORBIT = fileID['ancillary_data/start_orbit'][0]
-                EORBIT = fileID['ancillary_data/end_orbit'][0]
-                sdeltatime = fileID['ancillary_data/start_delta_time'][0]
-                edeltatime = fileID['ancillary_data/end_delta_time'][0]
-        # track earliest and latest delta time and UTC
-                if sdeltatime < min_start_delta_time:
-                    sUTCtime = fileID['ancillary_data/data_start_utc'][0].decode('utf-8')
-                    min_start_delta_time = sdeltatime
-                if edeltatime > max_end_delta_time:
-                    eUTCtime = fileID['ancillary_data/data_end_utc'][0].decode('utf-8')
-                    max_end_delta_time = edeltatime
+        with h5py.File(tile,'r') as h5f:
+            inputs=str(h5f['/meta/'].attrs['input_files'])
+            if inputs[0]=='b':
+                inputs=inputs[1:]
+            ATL11_files.update(inputs.replace("'",'').split(','))
+    for FILE in ATL11_files:
+        # extract parameters from filename
+        PRD,TRK,GRAN,SCYC,ECYC,RL,VERS,AUX = rx.findall(FILE).pop()
+        with h5py.File(os.path.join(atl11path,FILE),'r') as fileID:
+            # extract ATL11 attributes from files
+            UUID = fileID['METADATA']['DatasetIdentification'].attrs['uuid'].decode('utf-8')
+            SGEOSEG = fileID['ancillary_data/start_geoseg'][0]
+            EGEOSEG = fileID['ancillary_data/end_geoseg'][0]
+            SORBIT = fileID['ancillary_data/start_orbit'][0]
+            EORBIT = fileID['ancillary_data/end_orbit'][0]
+            sdeltatime = fileID['ancillary_data/start_delta_time'][0]
+            edeltatime = fileID['ancillary_data/end_delta_time'][0]
+            # track earliest and latest delta time and UTC
+            if sdeltatime < min_start_delta_time:
+                sUTCtime = fileID['ancillary_data/data_start_utc'][0].decode('utf-8')
+                min_start_delta_time = sdeltatime
+            if edeltatime > max_end_delta_time:
+                eUTCtime = fileID['ancillary_data/data_end_utc'][0].decode('utf-8')
+                max_end_delta_time = edeltatime
 
-    # merge attributes as a tuple
-            attrs = (FILE,PRD,int(TRK),int(GRAN),int(SCYC),int(ECYC),int(VERS),UUID,int(SGEOSEG),
-                    int(EGEOSEG),int(SORBIT),int(EORBIT))
-    # add attributes to list, if not already present
-            if attrs not in lineage:
-                lineage.append(attrs)
-# reduce to unique lineage attributes (no repeat files)
-#    sorted(set(lineage))
+        # merge attributes as a tuple
+        attrs = (FILE,PRD,int(TRK),int(GRAN),int(SCYC),int(ECYC),int(VERS),UUID,int(SGEOSEG),
+                int(EGEOSEG),int(SORBIT),int(EORBIT))
+        # add attributes to list, if not already present
+        if attrs not in lineage:
+            lineage.append(attrs)
+    # reduce to unique lineage attributes (no repeat files)
+    #    sorted(set(lineage))
 
 # sort and set lineage attributes
     slineage = sorted(lineage,key=lambda x: (x[0]))
