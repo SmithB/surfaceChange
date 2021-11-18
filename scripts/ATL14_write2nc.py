@@ -41,7 +41,7 @@ def ATL14_write2nc(args):
         nc.setncattr('GDAL_AREA_OR_POINT','Area')
         nc.setncattr('Conventions','CF-1.6')
 
-        if args.region in ['AK','CN','CS','GL','IC','SV','RU']:
+        if args.region in ['AK','CN','CS','GL','IS','SV','RU']:
             crs_var = nc.createVariable('Polar_Stereographic',np.byte,())
             crs_var.standard_name = 'Polar_Stereographic'
             crs_var.grid_mapping_name = 'polar_stereographic'
@@ -248,6 +248,7 @@ def ATL14_write2nc(args):
     return fileout
     
 if __name__=='__main__':
+    
     import argparse
     parser=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, fromfile_prefix_chars='@')
     parser.add_argument('-b','--base_dir', type=str, default=os.getcwd(), help='directory in which to look for mosaicked .h5 files')
@@ -264,8 +265,19 @@ if __name__=='__main__':
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
     parser.add_argument('-list11','--ATL11_lineage_dir', type=str, help='directory in which to look for ATL11 .h5 filenames')
-    parser.add_argument('-tiles','--tiles_dir', type=str, help='directory in which to look for tile .h5 files')
-
+    parser.add_argument('-tiles','--tiles_dir', type=str, help='directory in which to look for tile .h5 files, defaults to [base_dir]/centers')
+    parser.add_argument('--ATL11_index', type=str, help='GeoIndex file pointing to ATL11 data')
     args, _=parser.parse_known_args()
+    
+    if args.ATL11_lineage_dir is None:
+        # if ATL11 lineage_dir is not specified, assume that the grandparent of the ATL11_index works
+        args.ATL11_lineage_dir=os.path.dirname(os.path.dirname(args.ATL11_index))
+    
+    if args.tiles_dir is None:
+        args.tiles_dir=os.path.join(args.base_dir, 'centers')
+    
     print('args:',args)
+    
+    
+    
     fileout = ATL14_write2nc(args)
