@@ -134,7 +134,7 @@ if __name__=='__main__':
                                                          '\t CN: Arctic Canada North \n'
                                                          '\t CS: Arctic Canada South \n'
                                                          '\t GL: Greeland and peripheral ice caps \n'
-                                                         '\t IC: Iceland \n'
+                                                         '\t IS: Iceland \n'
                                                          '\t SV: Svalbard \n'
                                                          '\t RU: Russian Arctic')
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
