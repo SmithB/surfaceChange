@@ -18,7 +18,7 @@ from scipy import stats
 from ATL14_attrs_meta import write_atl14meta
 
 def projection_variable(region,group):
-    if region in ['AK','CN','CS','GL','IS','SV','RU']:
+    if region in ['AK','CN','CS','GL','IS','SV','RA']:
         crs_var = group.createVariable('Polar_Stereographic',np.byte,())
         crs_var.standard_name = 'Polar_Stereographic'
         crs_var.grid_mapping_name = 'polar_stereographic'
