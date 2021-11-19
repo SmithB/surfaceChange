@@ -115,11 +115,11 @@ def ATL14_browse_plots(args):
             dset.attrs['INTERLACE_MODE'] = np.string_('INTERLACE_PIXEL')
         
     
-    plt.show(block=False)
-    plt.pause(0.001)
-    input('Press enter to end.')
-    plt.close('all')
-    exit(-1)
+#    plt.show(block=False)
+#    plt.pause(0.001)
+#    input('Press enter to end.')
+#    plt.close('all')
+#    exit(-1)
 
             
     fhlog.close()
@@ -146,7 +146,7 @@ if __name__=='__main__':
     parser.add_argument('--pdf', action='store_true', default=False, help='write images to .pdf file')
     parser.add_argument('--nolog', action='store_true', default=False, help='no writing errors to .log file')
     args, unknown = parser.parse_known_args()
-    print('line 496',args)    
+    print(args)    
     
     ATL14_browse_plots(args) # command line:  python scripts/ATL14_browse_plots.py @/Volumes/ice3/suzanne/CN/input_args_CN_kjer.txt, like
 
