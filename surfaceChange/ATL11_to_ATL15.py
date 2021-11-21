@@ -748,6 +748,7 @@ def main(argv):
     parser.add_argument('--E_d2zdt2', type=float, default=5000)
     parser.add_argument('--E_d2z0dx2', type=float, default=0.02)
     parser.add_argument('--E_d3zdx2dt', type=float, default=0.0003)
+    parser.add_argument('--E_d2z0dx2_file', type=str, help='file from which to read the expected d2z0dx2 values')
     parser.add_argument('--data_gap_scale', type=float,  default=2500)
     parser.add_argument('--sigma_geo', type=float,  default=6.5)
     parser.add_argument('--dzdt_lags', type=str, default='1,4', help='lags for which to calculate dz/dt, comma-separated list, no spaces')
@@ -778,6 +779,14 @@ def main(argv):
     args.dzdt_lags = [np.int64(temp) for temp in args.dzdt_lags.split(',')]
     args.time_span = [np.float64(temp) for temp in args.time_span.split(',')]
     args.avg_scales = [np.int64(temp) for temp in args.avg_scales.split(',')]
+
+    if args.E_d2z0dx2_file is not None and args.calc_error_file is None:
+        E_d2z0dx2=pc.grid.data().from_geotif(args.E_d2z0dx2_file)#, bounds=[args.xy0[0]+np.array([-1, 1])*args.Width, args.xy0[1]+np.array([-1, 1])*args.Width])
+        col = np.argmin(np.abs(E_d2z0dx2.x-args.xy0[0]))
+        row = np.argmin(np.abs(E_d2z0dx2.y-args.xy0[1]))
+        args.E_d2z0dx2 = np.minimum(1.e-2, np.maximum(1.e-4, E_d2z0dx2.z[row,col]))
+        if np.isnan(args.E_d2z0dx2):
+            args.E_d2z0dx2=1.e-2
 
     spacing={'z0':args.grid_spacing[0], 'dz':args.grid_spacing[1], 'dt':args.grid_spacing[2]}
     E_RMS={'d2z0_dx2':args.E_d2z0dx2, 'd3z_dx2dt':args.E_d3zdx2dt, 'd2z_dxdt':args.E_d3zdx2dt*args.data_gap_scale,  'd2z_dt2':args.E_d2zdt2}
