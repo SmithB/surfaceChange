@@ -368,9 +368,11 @@ def apply_tides(D, xy0, W,
             tide_adj_sigma[ii[imin]] = adj_sigma
             tide_adj_valid[ii[imin]] = True
         # interpolate where invalid or with large errors
-        i1, = np.nonzero((D.tide_adj_scale < 1) & (tide_adj_sigma < 1))
+        i1, = np.nonzero((D.tide_adj_scale <= 1) &
+            (tide_adj_sigma < adj_sigma))
         i2, = np.nonzero(np.logical_not(tide_adj_valid) |
-            (D.tide_adj_scale >= 1) | (tide_adj_sigma >= 1))
+            (D.tide_adj_scale > 1) | (tide_adj_sigma >= adj_sigma))
+        i2 = sorted(set(i2) & set(adjustment_indices))
         D.tide_adj_scale[i2] = scipy.interpolate.griddata(
             (D.x[i1].ravel(), D.y[i1].ravel()),
             D.tide_adj_scale[i1].ravel(),
