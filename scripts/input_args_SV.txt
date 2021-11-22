@@ -19,6 +19,3 @@
 --Hemisphere=1
 --region=SV
 -b=/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/SV
--tiles=/att/nobackup/project/icesat-2/ATL14_processing/rel001/north/SV/centers
--list11=/att/nobackup/project/icesat-2/ATL14_processing/ATL11_004/north
-
