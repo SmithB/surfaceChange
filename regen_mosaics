@@ -71,6 +71,12 @@ fi
 
 this_replace="-R"
 for field in $field_list; do
-    python3 ~/git_repos/pointCollection/scripts/make_mosaic.py $this_replace -w -d $base  -g "*/*.h5"  -p $pad -f $feather -O $base/z0.h5 --in_group z0/ -F  $field 
+    echo $field
+    if [ -d $base/200km_tiles/z0 ] ; then
+	echo "200km"
+	python3 ~/git_repos/pointCollection/scripts/make_mosaic.py $this_replace  -d ${base}/200km_tiles/z0  -g "*.h5" -O $base/z0.h5 --in_group z0/ -F  $field 
+    else
+	python3 ~/git_repos/pointCollection/scripts/make_mosaic.py $this_replace -w -d $base  -g "*/*.h5"  -p $pad -f $feather -O $base/z0.h5 --in_group z0/ -F  $field 
+    fi
     this_replace=""
 done

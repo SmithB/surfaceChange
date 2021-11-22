@@ -15,7 +15,7 @@ import pkg_resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
-from ATL14_attrs_meta import write_atl14meta
+from surfaceChange import write_atl14meta
 #from ATL11.h5util import create_attribute
 
 def ATL14_write2nc(args):    
