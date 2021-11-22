@@ -142,19 +142,19 @@ def ATL15_write2nc(args):
             
             # make tile_stats group (ATBD 4.1.2.1, Table 3)
             tilegrp = nc.createGroup('tile_stats')   
-            tile_stats = {'x': { 'data': [], 'description':'tile-center x-coordinate, in projected coordinates', 'mapped':np.array(())},
-                          'y': { 'data': [], 'description':'tile-center y-coordinate, in projected coordinates', 'mapped':np.array(())},
-                          'N_data': { 'data': [], 'description':'number of data used in fit', 'mapped':np.array(())},
-                          'RMS_data': { 'data': [], 'description':'root mean of squared, scaled data misfits', 'mapped':np.array(())},
-                          'RMS_bias': { 'data': [], 'description':'root mean of squared, scaled bias values', 'mapped':np.array(())},
-                          'N_bias': { 'data': [], 'description':'number of bias values solved for', 'mapped':np.array(())},
-                          'RMS_d2z0dx2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second spatial derivative of z0', 'mapped':np.array(())},
-                          'RMS_d2zdt2': { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz', 'mapped':np.array(())},
-                          'RMS_d2zdx2dt' : { 'data': [], 'description':'root mean square of the constraint equation residuals for the second temporal derivative of dz/dt', 'mapped':np.array(())},
-                          'sigma_xx0' : { 'data': [], 'description':'Weighting values for the constraint equations on the second spatial derivatives of the DEM', 'mapped':np.array(())},
-                          'sigma_tt' : { 'data': [], 'description':'Weighting values for the constraint equations on the second temporal derivatives of the surface height', 'mapped':np.array(())},
-                          'sigma_xxt' : { 'data': [], 'description':'Weighting values for the constraint equations on the second spatial derivatives of the height-change rate', 'mapped':np.array(())}
-                          }
+            tileFile = pkg_resources.resource_filename('surfaceChange','resources/tile_stats_output_attrs.csv')
+            with open(tileFile,'r', encoding='utf-8-sig') as tilefile:
+                tile_reader=list(csv.DictReader(tilefile))
+        
+            tile_attr_names=[x for x in tile_reader[0].keys() if x != 'field' and x != 'group']
+    
+            tile_field_names = [row['field'] for row in tile_reader]
+    
+            tile_stats={}        # dict for appending data from the tile files
+            for field in tile_field_names:
+                if field not in tile_stats:
+                    tile_stats[field] = { 'data': [], 'mapped':np.array(())}
+                        
             
             # work through the tiles in all three subdirectories
             for sub in ['centers','edges','corners']:
@@ -164,9 +164,10 @@ def ATL15_write2nc(args):
                     try:
                         tile_stats['x']['data'].append(int(re.match(r'^.*E(.*)\_.*$',file).group(1)))
                     except Exception as e:
-                        print(f'ATL15_write2nc; unexpected file name {file}, skipping')
+                        print(f"problem with [ {file} ], skipping")
                         continue
                     tile_stats['y']['data'].append(int(re.match(r'^.*N(.*)\..*$',file).group(1)))
+    
                     with h5py.File(os.path.join(args.base_dir,sub,file),'r') as h5:
                         tile_stats['N_data']['data'].append( np.sum(h5['data']['three_sigma_edit'][:]) )
                         tile_stats['RMS_data']['data'].append( h5['RMS']['data'][()] )  # use () for getting a scalar.
@@ -179,51 +180,52 @@ def ATL15_write2nc(args):
                         tile_stats['sigma_tt']['data'].append( h5['E_RMS']['d2z_dt2'][()] )
                         tile_stats['sigma_xxt']['data'].append( h5['E_RMS']['d3z_dx2dt'][()] )
                         
-            # establish output grids
+            # establish output grids from min/max of x and y
             for key in tile_stats.keys():
-                if 'x' == key or 'y' == key or 'N_data' == key:  #integers
+                if key == 'x' or key == 'y' or key == 'N_data':  #integers
                     tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
-                                                           len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
-                                                           dtype=int)
+                                                            len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
+                                                            dtype=int)
                 else:
                     tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
-                                                           len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
-                                                           dtype=float)
+                                                            len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
+                                                            dtype=float)
     
-            # fill grids
+            # put data into grids
             for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
                 for key in tile_stats.keys():
+                    # fact helps convert x,y in km to m
                     if key != 'x' and key != 'y':
                         tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
                         tile_stats[key]['data'][i]
                         tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
-
-            # make dimensions
+    
+            # make dimensions, fill them as variables
             tilegrp.createDimension('y',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
-            y = tilegrp.createVariable('y', np.dtype('int32'), ('y',))
-            y[:]=np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) 
-            y.units = 'meter'
-            y.description = tile_stats['y']['description']
-            y.grid_mapping = 'Polar_Stereographic'
-            
             tilegrp.createDimension('x',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
-            x = tilegrp.createVariable('x', np.dtype('int32'), ('x',))
-            x[:]=np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)
-            x.units = 'meter'
-            x.description = tile_stats['x']['description']
-            x.grid_mapping = 'Polar_Stereographic'
-
+    
             # create tile_stats/ variables in .nc file
-            for key in tile_stats.keys():
-                if key != 'x' and key != 'y':
-                    if 'N_data' == key:
-                        dsetvar = tilegrp.createVariable(key,np.dtype('int32'),('y','x'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
-                    else:
-                        dsetvar = tilegrp.createVariable(key,np.dtype('float64'),('y','x'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
-                        dsetvar.least_significant_digit = 4
-                    dsetvar[:] = tile_stats[key]['mapped'][:]
-                    dsetvar.setncattr('description',tile_stats[key]['description'])
-                    dsetvar.setncattr('grid_mapping','Polar_Stereographic')
+            for field in tile_field_names:
+                tile_field_attrs = {row['field']: {tile_attr_names[ii]:row[tile_attr_names[ii]] for ii in range(len(tile_attr_names))} for row in tile_reader if field in row['field']}
+                # if field != 'x' and field != 'y':
+                if field == 'x':
+                    dsetvar = tilegrp.createVariable('x', np.dtype('int32'), ('x',))
+                    dsetvar[:] = np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40) * 1000 # convert from km to meter
+                elif field == 'y':
+                    dsetvar = tilegrp.createVariable('y', np.dtype('int32'), ('y',))
+                    dsetvar[:] = np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) * 1000 # convert from km to meter
+                elif field == 'N_data': 
+                    dsetvar = tilegrp.createVariable(field,np.dtype('int32'),('y','x'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
+                else:
+                    dsetvar = tilegrp.createVariable(field,np.dtype('float64'),('y','x'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
+                    dsetvar.least_significant_digit = 4
+                if field != 'x' and field != 'y':
+                    dsetvar[:] = tile_stats[field]['mapped'][:]
+                
+                for attr in ['units','dimensions','datatype','coordinates','description','coordinates','long_name','source']:
+                    dsetvar.setncattr(attr,tile_field_attrs[field][attr])
+                dsetvar.setncattr('grid_mapping','Polar_Stereographic')
+    
             
             crs_var = projection_variable(args.region,tilegrp)
 
