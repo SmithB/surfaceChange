@@ -86,7 +86,7 @@ def ATL15_browse_plots(args):
     ax.add_feature(cfeature.LAND,facecolor='0.8')
     ax.coastlines(resolution='50m',linewidth=0.5)
     ax.gridlines(crs=ccrs.PlateCarree())
-    h = ax.imshow(dhdtmn, extent=extent, cmap='Spectral', vmin=h05mn, vmax=h95mn, origin='lower')
+    h = ax.imshow(dhdtmn, extent=extent, cmap='Spectral', vmin=h05mn, vmax=h95mn, origin='lower', interpolation='nearest')
     fig.colorbar(h,ax=ax,label='dh/dt, m',shrink=1/2, extend='both')
     ax.set_title(f'Mean quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
     if args.Hemisphere==1:
@@ -100,7 +100,7 @@ def ATL15_browse_plots(args):
     ax.add_feature(cfeature.LAND,facecolor='0.8')
     ax.coastlines(resolution='50m',linewidth=0.5)
     ax.gridlines(crs=ccrs.PlateCarree())
-    h = ax.imshow(dhdtstd, extent=extent, cmap='viridis', vmin=h05std, vmax=h95std, origin='lower')
+    h = ax.imshow(dhdtstd, extent=extent, cmap='viridis', vmin=h05std, vmax=h95std, origin='lower',interpolation='nearest')
     fig.colorbar(h,ax=ax,label='dh/dt standard deviation, m',shrink=1/2, extend='both')
     ax.set_title(f'Standard deviation of quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
     if args.Hemisphere==1:
