@@ -16,7 +16,7 @@ import pkg_resources
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
-from ATL14_attrs_meta import write_atl14meta
+from surfaceChange import write_atl14meta
 #from ATL11.h5util import create_attribute
 
 def ATL14_write2nc(args):    
@@ -210,7 +210,6 @@ def ATL14_write2nc(args):
                                         dimensions, zlib=True, 
                                         least_significant_digit=ast.literal_eval(field_attrs[field]['least_significant_digit']),
                                         fill_value=fill_value)
-            print('field',field,field_attrs[field]['least_significant_digit'])
             dsetvar[:] = data
 
             for attr in attr_names:
