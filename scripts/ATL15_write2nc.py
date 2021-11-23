@@ -15,7 +15,7 @@ import matplotlib as mpl
 import cartopy.crs as ccrs
 import cartopy.feature
 from scipy import stats
-from surfaceChange import write_atl14meta
+from ATL14_attrs_meta import write_atl14meta
 
 def projection_variable(region,group):
     if region in ['AK','CN','CS','GL','IS','SV','RA']:
@@ -182,7 +182,7 @@ def ATL15_write2nc(args):
                         
             # establish output grids from min/max of x and y
             for key in tile_stats.keys():
-                if key == 'x' or key == 'y' or key == 'N_data':  #integers
+                if key == 'N_data' or key == 'N_bias':  # key == 'x' or key == 'y' or 
                     tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
                                                             len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))], 
                                                             dtype=int)
@@ -190,7 +190,6 @@ def ATL15_write2nc(args):
                     tile_stats[key]['mapped'] = np.zeros( [len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)),
                                                             len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
                                                             dtype=float)
-    
             # put data into grids
             for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
                 for key in tile_stats.keys():
@@ -199,7 +198,7 @@ def ATL15_write2nc(args):
                         tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
                         tile_stats[key]['data'][i]
                         tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
-    
+
             # make dimensions, fill them as variables
             tilegrp.createDimension('y',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
             tilegrp.createDimension('x',len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40)))
@@ -207,18 +206,17 @@ def ATL15_write2nc(args):
             # create tile_stats/ variables in .nc file
             for field in tile_field_names:
                 tile_field_attrs = {row['field']: {tile_attr_names[ii]:row[tile_attr_names[ii]] for ii in range(len(tile_attr_names))} for row in tile_reader if field in row['field']}
-                # if field != 'x' and field != 'y':
                 if field == 'x':
-                    dsetvar = tilegrp.createVariable('x', np.dtype('int32'), ('x',))
-                    dsetvar[:] = np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40) * 1000 # convert from km to meter
+                    dsetvar = tilegrp.createVariable('x', tile_field_attrs[field]['datatype'], ('x',), fill_value=np.finfo(tile_field_attrs[field]['datatype']).max, zlib=True)
+                    dsetvar[:] = np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40.) * 1000 # convert from km to meter
                 elif field == 'y':
-                    dsetvar = tilegrp.createVariable('y', np.dtype('int32'), ('y',))
-                    dsetvar[:] = np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40) * 1000 # convert from km to meter
-                elif field == 'N_data': 
-                    dsetvar = tilegrp.createVariable(field,np.dtype('int32'),('y','x'),fill_value=np.iinfo(np.dtype('int32')).max, zlib=True)
+                    dsetvar = tilegrp.createVariable('y', tile_field_attrs[field]['datatype'], ('y',), fill_value=np.finfo(tile_field_attrs[field]['datatype']).max, zlib=True)
+                    dsetvar[:] = np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40.) * 1000 # convert from km to meter
+                elif field == 'N_data' or field == 'N_bias': 
+                    dsetvar = tilegrp.createVariable(field, tile_field_attrs[field]['datatype'],('y','x'),fill_value=np.iinfo(tile_field_attrs[field]['datatype']).max, zlib=True)
                 else:
-                    dsetvar = tilegrp.createVariable(field,np.dtype('float64'),('y','x'),fill_value=np.finfo(np.dtype('float64')).max, zlib=True)
-                    dsetvar.least_significant_digit = 4
+                    dsetvar = tilegrp.createVariable(field, tile_field_attrs[field]['datatype'],('y','x'),fill_value=np.finfo(tile_field_attrs[field]['datatype']).max, zlib=True)
+
                 if field != 'x' and field != 'y':
                     dsetvar[:] = tile_stats[field]['mapped'][:]
                 
