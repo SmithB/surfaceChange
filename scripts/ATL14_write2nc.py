@@ -11,10 +11,10 @@ from scipy import stats
 import sys, os, h5py, glob, csv
 import io, re
 import ast
-import pointCollection as pc
+#import pointCollection as pc
 import pkg_resources
 from netCDF4 import Dataset
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 from surfaceChange import write_atl14meta
 #from ATL11.h5util import create_attribute
@@ -127,13 +127,18 @@ def ATL14_write2nc(args):
                                                         dtype=float)
 
         # put data into grids
-        for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
-            for key in tile_stats.keys():
-                # fact helps convert x,y in km to m
-                if key != 'x' and key != 'y':
-                    tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
-                    tile_stats[key]['data'][i]
-                    tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+        for key in tile_stats.keys():
+            # fact helps convert x,y in km to m
+            if key == 'x' or key == 'y':
+                continue
+            for (yt, xt, dt) in zip(tile_stats['y']['data'], tile_stats['x']['data'], tile_stats[key]['data']):
+                if not np.isfinite(dt):
+                    print(f"ATL14_write2nc: found bad tile_stats value in field {key} at x={xt}, y={yt}")
+                    continue
+                row=int((yt-np.min(tile_stats['y']['data']))/40)
+                col=int((xt-np.min(tile_stats['x']['data']))/40)
+                tile_stats[key]['mapped'][row,col] = dt
+            tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
 
         # make dimensions, fill them as variables
         tilegrp.createDimension('y',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))

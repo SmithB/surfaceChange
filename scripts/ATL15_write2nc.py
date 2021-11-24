@@ -10,10 +10,10 @@ import  os, h5py, csv, re
 import ast
 import pkg_resources
 from netCDF4 import Dataset
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import cartopy.crs as ccrs
-import cartopy.feature
+#import matplotlib.pyplot as plt
+#import matplotlib as mpl
+#import cartopy.crs as ccrs
+#import cartopy.feature
 from scipy import stats
 from surfaceChange import write_atl14meta
 
@@ -120,7 +120,6 @@ def ATL15_write2nc(args):
             'varigrp' : ['delta_h','dhdt_lag1','dhdt_lag4','dhdt_lag8']
            }
     avgs = ['','_10km','_20km','_40km']
-
     # open data attributes file
     attrFile = pkg_resources.resource_filename('surfaceChange','resources/ATL15_output_attrs.csv')
     with open(attrFile,'r',encoding='utf-8-sig') as attrfile:
@@ -128,7 +127,7 @@ def ATL15_write2nc(args):
 
     attr_names=[x for x in reader[0].keys() if x != 'field' and x != 'group']
     
-    for kk,ave in enumerate(avgs):  
+    for ave in avgs:  
         # establish output file, one per average
         if ave=='':
             fileout = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + '_01km_' + args.Release + '_' + args.version + '.nc'
@@ -191,13 +190,18 @@ def ATL15_write2nc(args):
                                                             len(np.arange(np.min(tile_stats['x']['data']),np.max(tile_stats['x']['data'])+40,40))],
                                                             dtype=float)
             # put data into grids
-            for i, (yt,xt) in enumerate(zip(tile_stats['y']['data'],tile_stats['x']['data'])):
-                for key in tile_stats.keys():
-                    # fact helps convert x,y in km to m
-                    if key != 'x' and key != 'y':
-                        tile_stats[key]['mapped'][int((yt-np.min(tile_stats['y']['data']))/40),int((xt-np.min(tile_stats['x']['data']))/40)] = \
-                        tile_stats[key]['data'][i]
-                        tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
+            for key in tile_stats.keys():
+                # fact helps convert x,y in km to m
+                if key == 'x' or key == 'y':
+                    continue
+                for (yt, xt, dt) in zip(tile_stats['y']['data'], tile_stats['x']['data'], tile_stats[key]['data']):
+                    if not np.isfinite(dt):
+                        print(f"ATL14_write2nc: found bad tile_stats value in field {key} at x={xt}, y={yt}")
+                        continue
+                    row=int((yt-np.min(tile_stats['y']['data']))/40)
+                    col=int((xt-np.min(tile_stats['x']['data']))/40)
+                    tile_stats[key]['mapped'][row,col] = dt
+                tile_stats[key]['mapped'] = np.ma.masked_where(tile_stats[key]['mapped'] == 0, tile_stats[key]['mapped'])   
 
             # make dimensions, fill them as variables
             tilegrp.createDimension('y',len(np.arange(np.min(tile_stats['y']['data']),np.max(tile_stats['y']['data'])+40,40)))
@@ -294,7 +298,7 @@ def ATL15_write2nc(args):
                     make_dataset(field,field,data,field_attrs,nc,nc.groups[lags['varigrp'][jj]],nctype,dimScale=True)
                     
                     for fld in ['cell_area','delta_h','delta_h_sigma','ice_mask','data_count','misfit_rms','misfit_scaled_rms']:  # fields that can be ave'd but not lagged
-                        if kk>0 and (fld.startswith('misfit') or fld=='ice_mask' or fld=='data_count'): # not in ave'd groups
+                        if (len(ave) > 0) and (fld.startswith('misfit') or fld=='ice_mask' or fld=='data_count'): # not in ave'd groups
                             break
                         field = fld+ave
                         field_attrs = {row['field']: {attr_names[ii]:row[attr_names[ii]] for ii in range(len(attr_names))} for row in reader if field == row['field'] if row['group']=='height_change'+ave}
