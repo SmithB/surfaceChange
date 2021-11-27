@@ -369,19 +369,25 @@ def apply_tides(D, xy0, W,
             D.tide_adj_scale[ii[imin]] = adj
             tide_adj_sigma[ii[imin]] = adj_sigma
             tide_adj_valid[ii[imin]] = True
-        # interpolate where invalid or with large errors
-        i1, = np.nonzero((D.tide_adj_scale <= 1) &
-            (tide_adj_sigma < sigma_tolerance))
-        i2, = np.nonzero(np.logical_not(tide_adj_valid) |
-            (D.tide_adj_scale > 1) |
-            (tide_adj_sigma >= sigma_tolerance))
-        D.tide_adj_scale[i2] = scipy.interpolate.griddata(
-            (D.x[i1].ravel(), D.y[i1].ravel()),
-            D.tide_adj_scale[i1].ravel(),
-            (D.x[i2].ravel(), D.y[i2].ravel()),
-            fill_value=np.nan,
-            method="linear",
-        )
+        #-- attempt to interpolate invalid adjustments
+        try:
+            # interpolate where invalid or with large errors
+            i1, = np.nonzero((D.tide_adj_scale <= 1) &
+                (tide_adj_sigma < sigma_tolerance))
+            i2, = np.nonzero(np.logical_not(tide_adj_valid) |
+                (D.tide_adj_scale > 1) |
+                (tide_adj_sigma >= sigma_tolerance))
+            D.tide_adj_scale[i2] = scipy.interpolate.griddata(
+                (D.x[i1].ravel(), D.y[i1].ravel()),
+                D.tide_adj_scale[i1].ravel(),
+                (D.x[i2].ravel(), D.y[i2].ravel()),
+                fill_value=np.nan,
+                method="linear",
+            )
+        except:
+            # print exceptions
+            logging.debug(traceback.format_exc())
+            pass
         # multiply tides and DAC by adjustments
         D.tide_ocean[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
         D.dac[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
