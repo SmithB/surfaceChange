@@ -69,7 +69,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
                         'h_corr','h_corr_sigma','h_corr_sigma_systematic', 'ref_pt'],\
                         '__calc_internal__' : ['rgt'],
                         'cycle_stats' : {'tide_ocean','dac'},
-                        'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality', 'dem_h']}
+                        'ref_surf':['e_slope','n_slope', 'x_atc', 'fit_quality', 'dem_h','geoid_h']}
     try:
         # catch empty data
         D11_list=pc.geoIndex().from_file(index_file).query_xy_box(
@@ -114,6 +114,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
            'n_cycles': n_cycles,
            'fit_quality': D11.fit_quality,
            'dem_h': D11.dem_h,
+           'geoid_h': D11.geoid_h,
            'tide_ocean': D11.tide_ocean,
            'dac': D11.dac,
            'delta_time': D11.delta_time,
@@ -129,14 +130,17 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
         D_x = pc.ATL11.crossover_data().from_h5(D11.filename, pair=D11.pair, D_at=D11)
         if D_x is None:
             continue
-        # fit_quality and dem_h D11 apply to all cycles, but are mapped only to some specific
-        # cycle of the reference cycle
+        # fit_quality, dem_h and geoid_hD11 apply to all cycles
+        # but are mapped only to some specific cycle of the reference cycle
         temp={'fit_quality':np.nanmax(D_x.fit_quality[:,:,0], axis=1),
-              'dem_h':np.nanmax(D_x.dem_h[:,:,0], axis=1)}
+              'dem_h':np.nanmax(D_x.dem_h[:,:,0], axis=1),
+              'geoid_h':np.nanmax(D_x.geoid_h[:,:,0], axis=1),
+              }
         for cycle in range(D_x.shape[1]):
             D_x.fit_quality[:,cycle,1]=temp['fit_quality']
             D_x.dem_h[:,cycle,1]=temp['dem_h']
-
+            D_x.geoid_h[:,cycle,1]=temp['geoid_h']
+        # get the cartesian coordinates
         D_x.get_xy(proj4_string=SRS_proj4)
 
         good=np.isfinite(D_x.h_corr)[:,0:2,1].ravel()
@@ -161,6 +165,7 @@ def read_ATL11(xy0, Wxy, index_file, SRS_proj4, sigma_geo=6.5):
             'latitude':D_x.latitude,
             'longitude':D_x.longitude,
             'dem_h':D_x.dem_h,
+            'geoid_h':D_x.geoid_h,
             'rgt':D_x.rgt,
             'pair':np.zeros_like(D_x.x)+D_x.pair,
             'ref_pt':blank,
@@ -253,7 +258,7 @@ def apply_tides(D, xy0, W,
         D.assign({'tide_adj_scale': np.ones_like(D.x)})
         D.tide_adj_scale[is_els==0]=0.0
         tide_adj_sigma = np.zeros_like(D.x) + np.inf
-        tide_adj_valid = np.ones_like(D.x,dtype=bool)
+        tide_adj_valid = np.zeros_like(D.x,dtype=bool)
         # adjust indices that are extrapolated of within a defined mask
         if not tide_adjustment_file:
             # check if point is within model domain
@@ -276,11 +281,10 @@ def apply_tides(D, xy0, W,
         # make a global reference point number combining ref_pt, rgt and pair
         # convert both pair and rgt to zero-based indices
         global_ref_pt = 3*1387*D.ref_pt + 3*(D.rgt-1) + (D.pair-1)
+
         u_ref_pt = np.unique(global_ref_pt[adjustment_indices])
         logging.info(f"\t\ttide adjustment: {len(u_ref_pt)} refs")
         logging.info(f"\t\t{tide_adjustment_file}") if tide_adjustment_file else None
-        # set mask indices for all points to be adjusted
-        tide_adj_valid[adjustment_indices] = False
         # calculate temporal fit of tide points with model phases
         # only for reference points that are extrapolated
         for ref_pt in u_ref_pt:
@@ -312,7 +316,8 @@ def apply_tides(D, xy0, W,
             dac = np.copy(D.dac[ii])
             dac[~np.isfinite(dac)] = 0.0
             # reduce DAC-corrected heights to global reference point
-            h = D.z[ii] - dac
+            h = D.z[ii] - dac - D.geoid_h[ii]
+
             # use linear least-squares with bounds on the variables
             # create design matrix
             p0 = np.ones_like(t)
@@ -320,8 +325,9 @@ def apply_tides(D, xy0, W,
             DMAT = np.c_[tide,p0,p1]
             # check if there are enough unique dates for fit
             u_days = np.unique(np.round(p1*365.25))
-            if (len(u_days) <= 3):
+            if (len(u_days) <= 4):
                 continue
+
             # tuple for parameter bounds (lower and upper)
             # output tidal amplitudes must be between 0 and 1 of model
             # average height must be between minimum and maximum of h
@@ -363,12 +369,14 @@ def apply_tides(D, xy0, W,
                 MSE = np.sum(results['fun']**2)/nu
                 # standard error from covariance matrix
                 adj_sigma,*_ = np.sqrt(MSE*np.diag(Hinv))
+
             # use best case fits for each point
             imin, = np.nonzero(tide_adj_sigma[ii] >= adj_sigma)
             # copy adjustments and estimated uncertainties
             D.tide_adj_scale[ii[imin]] = adj
             tide_adj_sigma[ii[imin]] = adj_sigma
             tide_adj_valid[ii[imin]] = True
+
         #-- attempt to interpolate invalid adjustments
         try:
             # interpolate where invalid or with large errors
@@ -377,6 +385,9 @@ def apply_tides(D, xy0, W,
             i2, = np.nonzero(np.logical_not(tide_adj_valid) |
                 (D.tide_adj_scale > 1) |
                 (tide_adj_sigma >= sigma_tolerance))
+            # set mask indices for all points to be adjusted
+            i2 = sorted(set(i2) & set(adjustment_indices))
+            # interpolate adjustment values
             D.tide_adj_scale[i2] = scipy.interpolate.griddata(
                 (D.x[i1].ravel(), D.y[i1].ravel()),
                 D.tide_adj_scale[i1].ravel(),
@@ -391,6 +402,7 @@ def apply_tides(D, xy0, W,
         # multiply tides and DAC by adjustments
         D.tide_ocean[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
         D.dac[adjustment_indices] *= D.tide_adj_scale[adjustment_indices]
+        D.tide_adj_scale[is_els==0] = 0
     # replace invalid tide and dac values
     D.tide_ocean[is_els==0] = 0
     D.dac[is_els==0] = 0
