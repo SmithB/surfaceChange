@@ -3,7 +3,7 @@
 -g=100,1000,0.25
 --dzdt_lags=1,4,8
 --E_d3zdx2dt=0.00005 
---E_d2z0dx2=0.0006
+--E_d2z0dx2=0.02
 --E_d2zdt2=200000 
 --reference_epoch=5
 --avg_scales=40000,20000,10000

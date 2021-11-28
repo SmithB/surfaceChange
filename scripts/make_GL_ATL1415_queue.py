@@ -182,27 +182,80 @@ elif args.step=='corners':
     delta_y=[-1, -1, 1, 1.]
 
 queued=[];
-queue_file=f"1415_queue_{defaults['--region']}_{args.step}.txt"
 
-with open(queue_file,'w') as qh:
-    for xy0 in zip(xg, yg):
-        for dx, dy in zip(delta_x, delta_y):  
-            xy1=np.array(xy0)+np.array([dx, dy])*Hxy
-            if tuple(xy1) in queued:
-                continue
-            else:
-                queued.append(tuple(xy1))
-                
-            c = np.flatnonzero(d2z0_grid.x==xy0[0]) 
-            r = np.flatnonzero(d2z0_grid.y==xy0[1])
-            E_d2z0dx2 = np.minimum(1.e-2, np.maximum(1.e-4, d2z0_grid.z[r,c]))[0]
-            out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
-            if not os.path.isfile(out_file):
-                cmd = '%s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
-                cmd += f' --E_d2z0dx2={E_d2z0dx2:.6f}'
-                if calc_errors:
-                    cmd += '; '+cmd+' --calc_error_for_xy'
-                qh.write(f'source activate {environment}; '+cmd+'; echo COMPLETE\n')
-print("Wrote commands to "+queue_file)
+run_name=f"1415_run_{defaults['--region']}_{args.step}"
+run_dir=run_name
+queue_dir=f"{run_dir}/queue"
+if not os.path.isdir(run_dir):
+    os.mkdir(run_dir)
+if not os.path.isdir(queue_dir):
+    os.mkdir(queue_dir)
+
+for name in ["logs", "running","done", "slurm_logs"]:
+    if not os.path.isdir(run_dir+'/'+name):
+        os.mkdir(run_dir+'/'+name)
+
+count=0
+
+for xy0 in zip(xg, yg):
+    for dx, dy in zip(delta_x, delta_y):  
+        xy1=np.array(xy0)+np.array([dx, dy])*Hxy
+        if tuple(xy1) in queued:
+            continue
+        else:
+            queued.append(tuple(xy1))
+            
+        c = np.argmin(np.abs(d2z0_grid.x-xy0[0]))
+        r = np.argmin(np.abs(d2z0_grid.y-xy0[1]))
+        E_d2z0dx2 = np.minimum(1.e-2, np.maximum(1.e-4, d2z0_grid.z[r,c]))
+        out_file='%s/E%d_N%d.h5' % (step_dir, xy1[0]/1000, xy1[1]/1000)  
+        if os.path.isfile(out_file):
+            continue
+        count +=1
+        task_file=f'{queue_dir}/calc_dh_{count}'
+        with open(task_file,'w') as fh_out:
+            fh_out.write(f'source activate {environment}\n')
+            cmd = '%s %d %d --%s @%s ' % (prog, xy1[0], xy1[1], args.step, defaults_file)
+            cmd += f' --E_d2z0dx2={E_d2z0dx2:.6f}'
+            fh_out.write(cmd+'\n')
+        calc_sigma_file=f'{queue_dir}/calc_sigma_{count}'
+        if calc_errors:
+            calc_sigma_file=f'{queue_dir}/calc_sigma_{count}'
+            with open(calc_sigma_file,'w') as fh_out:
+                cmd += ' --calc_error_for_xy'
+                fh_out.write(f'source activate {environment}\n')
+                fh_out.write(cmd+'\n')
+print("Wrote commands to "+queue_dir)
+
+replacements={"[[JOB_NAME]]":run_name+'_dh', "[[TIME]]":"03:00:00", '[[NUM_TASKS]]':'2', "[[JOB_DIR]]":queue_dir, "[[JOB_NUMBERS]]":f"1-{count}", "[[PREFIX]]":"calc_dh"}
+
+with open('/home/besmith4/slurm_files/templates/worker','r') as temp:
+    with open(run_dir+'/slurm_tile_run','w') as out:
+        for line in temp:
+            for search, replace in replacements.items():
+                line=line.replace(search, replace)
+            out.write(line)
+
+if args.step=='centers':
+    os.system(f'cd {run_dir}; sbatch slurm_tile_run > dependents')
+else:
+    if args.step=='edges':
+        last_dir=run_dir.replace('edges','centers')
+    elif args.step=='corners':
+        last_dir=run_dir.replace('corners','edges')
+    dep_job=os.popen(f'tail -1 {last_dir}/dependents').read().rstrip().split()[-1]
+    os.system(f'cd {run_dir}; sbatch --dependency=afterany:{dep_job} slurm_tile_run > dependents')
+
+replacements={"[[JOB_NAME]]":run_name+'_sigma', "[[TIME]]":"03:00:00", '[[NUM_TASKS]]':'1', "[[JOB_DIR]]":queue_dir, "[[JOB_NUMBERS]]":f"1-{count}", "[[PREFIX]]":"calc_sigma"}
+
+with open('/home/besmith4/slurm_files/templates/worker','r') as temp:
+    with open(run_dir+'/slurm_sigma_run','w') as out:
+        for line in temp:
+            for search, replace in replacements.items():
+                line=line.replace(search, replace)
+            out.write(line)
+
+dep_job=os.popen(f'tail -1 {run_dir}/dependents').read().rstrip().split()[-1]
+os.system(f'cd {run_dir}; sbatch --dependency=afterany:{dep_job} slurm_sigma_run >> dependents')
 
 

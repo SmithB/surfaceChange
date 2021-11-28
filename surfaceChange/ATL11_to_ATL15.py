@@ -639,6 +639,7 @@ def ATL11_to_ATL15(xy0, Wxy=4e4, ATL11_index=None, E_RMS={}, \
                      bias_params=['rgt','cycle'],  max_iterations=max_iterations,
                      srs_proj4=SRS_proj4, VERBOSE=True, dzdt_lags=dzdt_lags,
                      mask_file=mask_file, mask_data=mask_data, mask_scale={0:10, 1:1},
+                     converge_tol_frac_edit=0.001,
                      error_res_scale=error_res_scale,
                      avg_scales=avg_scales)
     S['file_list'] = file_list
@@ -752,9 +753,9 @@ def main(argv):
 
     import argparse
     parser=argparse.ArgumentParser(\
-        description="function to fit icebridge data with a smooth elevation-change model", \
+        description="function to fit ICESat-2 data with a smooth elevation-change model", \
         fromfile_prefix_chars="@")
-    parser.add_argument('xy0', type=float, nargs=2, help="fit center location")
+    parser.add_argument('--xy0', type=float, nargs=2, help="fit center location")
     parser.add_argument('--ATL11_index', type=str, required=True, help="ATL11 index file")
     parser.add_argument('--Width','-W',  type=float, help="Width of grid")
     parser.add_argument('--time_span','-t', type=str, help="time span, first year,last year AD (comma separated, no spaces)")
@@ -769,6 +770,7 @@ def main(argv):
     parser.add_argument('--E_d2zdt2', type=float, default=5000)
     parser.add_argument('--E_d2z0dx2', type=float, default=0.02)
     parser.add_argument('--E_d3zdx2dt', type=float, default=0.0003)
+    parser.add_argument('--E_d2z0dx2_file', type=str, help='file from which to read the expected d2z0dx2 values')
     parser.add_argument('--data_gap_scale', type=float,  default=2500)
     parser.add_argument('--sigma_geo', type=float,  default=6.5)
     parser.add_argument('--dzdt_lags', type=str, default='1,4', help='lags for which to calculate dz/dt, comma-separated list, no spaces')
@@ -804,6 +806,14 @@ def main(argv):
     args.time_span = [np.float64(temp) for temp in args.time_span.split(',')]
     args.avg_scales = [np.int64(temp) for temp in args.avg_scales.split(',')]
 
+    if args.E_d2z0dx2_file is not None and args.calc_error_file is None:
+        E_d2z0dx2=pc.grid.data().from_geotif(args.E_d2z0dx2_file)#, bounds=[args.xy0[0]+np.array([-1, 1])*args.Width, args.xy0[1]+np.array([-1, 1])*args.Width])
+        col = np.argmin(np.abs(E_d2z0dx2.x-args.xy0[0]))
+        row = np.argmin(np.abs(E_d2z0dx2.y-args.xy0[1]))
+        args.E_d2z0dx2 = np.minimum(1.e-2, np.maximum(1.e-4, E_d2z0dx2.z[row,col]))
+        if np.isnan(args.E_d2z0dx2):
+            args.E_d2z0dx2=1.e-2
+
     spacing={'z0':args.grid_spacing[0], 'dz':args.grid_spacing[1], 'dt':args.grid_spacing[2]}
     E_RMS={'d2z0_dx2':args.E_d2z0dx2, 'd3z_dx2dt':args.E_d3zdx2dt, 'd2z_dxdt':args.E_d3zdx2dt*args.data_gap_scale,  'd2z_dt2':args.E_d2zdt2}
 
@@ -825,18 +835,21 @@ def main(argv):
         reread_dirs += [args.base_directory+'/edges']
         dest_dir +='/corners'
 
-    if args.out_name is None:
-        args.out_name=dest_dir + '/E%d_N%d.h5' % (args.xy0[0]/1e3, args.xy0[1]/1e3)
-
     if args.calc_error_file is not None:
         dest_dir=os.path.dirname(args.calc_error_file)
         # get xy0 from the filename
         re_match=re.compile('E(.*)_N(.*).h5').search(args.calc_error_file)
         args.xy0=[float(re_match.group(ii))*1000 for ii in [1, 2]]
         args.out_name=args.calc_error_file
+        with h5py.File(args.calc_error_file) as h5f:
+            args.E_d2z0dx2 = h5f['E_RMS']['d2z0_dx2'][()]
+            E_RMS['d2z0_dx2'] = args.E_d2z0dx2
         if not os.path.isfile(args.out_name):
             logging.critical(f"{args.out_name} not found, returning")
             return 1
+
+    if args.out_name is None:
+        args.out_name=dest_dir + '/E%d_N%d.h5' % (args.xy0[0]/1e3, args.xy0[1]/1e3)
 
     if args.calc_error_for_xy:
         args.calc_error_file=args.out_name
@@ -851,9 +864,10 @@ def main(argv):
 
     if not os.path.isdir(args.base_directory):
         os.mkdir(args.base_directory)
-    if not os.path.isdir(dest_dir):
+    try:
         os.mkdir(dest_dir)
-
+    except FileExistsError:
+        pass
     S=ATL11_to_ATL15(args.xy0, ATL11_index=args.ATL11_index,
            Wxy=args.Width, E_RMS=E_RMS, t_span=args.time_span, spacing=spacing, \
            sigma_geo=args.sigma_geo, \

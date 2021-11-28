@@ -7,7 +7,7 @@ Created on Fri Jan 24 10:45:47 2020
 """
 import numpy as np
 from scipy import stats
-import os, glob
+import os, glob, sys
 from netCDF4 import Dataset
 import shutil
 import h5py
@@ -46,7 +46,7 @@ def ATL14_browse_plots(args):
         fhlog = open(log_file,'a')
      
     filein = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_100m_' + args.Release + '_' + args.version + '.nc'
-    print('Making browse figure from ',filein)
+    print('Making browse figures from ',filein)
     pngfile = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version + '_BRW'
 
     ds = Dataset(filein)
@@ -70,7 +70,7 @@ def ATL14_browse_plots(args):
     ax.gridlines(crs=ccrs.PlateCarree())
     h05 = stats.mstats.scoreatpercentile(h[~np.isnan(h)].ravel(),5)    
     h95 = stats.mstats.scoreatpercentile(h[~np.isnan(h)].ravel(),95)
-    handle = ax.imshow(h, extent=extent, cmap=cmap, vmin=h05, vmax=h95, origin='lower')
+    handle = ax.imshow(h, extent=extent, cmap=cmap, vmin=h05, vmax=h95, origin='lower', interpolation='nearest')
     fig.colorbar(handle,ax=ax,label='DEM, m',shrink=1/2, extend='both')
     ax.set_title(f'DEM: {os.path.basename(filein)}')
     if args.Hemisphere==1:
@@ -84,9 +84,9 @@ def ATL14_browse_plots(args):
     ax.add_feature(cfeature.LAND,facecolor='0.8')
     ax.coastlines(resolution='50m',linewidth=0.5)
     ax.gridlines(crs=ccrs.PlateCarree())
-    h01 = stats.mstats.scoreatpercentile(h_sigma[~np.isnan(h_sigma)].ravel(),1)    
+    h01 = stats.mstats.scoreatpercentile(h_sigma[~np.isnan(h_sigma)].ravel(),1)  
     h99 = stats.mstats.scoreatpercentile(h_sigma[~np.isnan(h_sigma)].ravel(),99)
-    handle = ax.imshow(h_sigma, extent=extent, cmap='viridis', norm=LogNorm(vmin=h01, vmax=h99), origin='lower') #
+    handle = ax.imshow(h_sigma, extent=extent, cmap='viridis', norm=LogNorm(vmin=h01, vmax=h99), origin='lower', interpolation='nearest') 
     fig.colorbar(handle,ax=ax,label='DEM uncertainty, m',shrink=1/2, extend='both')
     ax.set_title(f'DEM Uncertainty: {os.path.basename(filein)}')
     if args.Hemisphere==1:
@@ -115,11 +115,11 @@ def ATL14_browse_plots(args):
             dset.attrs['INTERLACE_MODE'] = np.string_('INTERLACE_PIXEL')
         
     
-    plt.show(block=False)
-    plt.pause(0.001)
-    input('Press enter to end.')
-    plt.close('all')
-    exit(-1)
+#    plt.show(block=False)
+#    plt.pause(0.001)
+#    input('Press enter to end.')
+#    plt.close('all')
+#    exit(-1)
 
             
     fhlog.close()
@@ -134,9 +134,9 @@ if __name__=='__main__':
                                                          '\t CN: Arctic Canada North \n'
                                                          '\t CS: Arctic Canada South \n'
                                                          '\t GL: Greeland and peripheral ice caps \n'
-                                                         '\t IC: Iceland \n'
+                                                         '\t IS: Iceland \n'
                                                          '\t SV: Svalbard \n'
-                                                         '\t RU: Russian Arctic')
+                                                         '\t RA: Russian Arctic')
     parser.add_argument('-c','--cycles', type=str, help="4-digit number specifying first/last cycles for output filename")
     parser.add_argument('-R','--Release', type=str, help="3-digit release number for output filename")
     parser.add_argument('-v','--version', type=str, help="2-digit version number for output filename")
@@ -146,9 +146,9 @@ if __name__=='__main__':
     parser.add_argument('--pdf', action='store_true', default=False, help='write images to .pdf file')
     parser.add_argument('--nolog', action='store_true', default=False, help='no writing errors to .log file')
     args, unknown = parser.parse_known_args()
-    print('line 496',args)    
+    print(args)    
     
-    ATL14_browse_plots(args) # command line:  python scripts/ATL14_browse_plots.py @/Volumes/ice3/suzanne/CN/input_args_CN_kjer.txt, like
+    ATL14_browse_plots(args) 
 
 
 
