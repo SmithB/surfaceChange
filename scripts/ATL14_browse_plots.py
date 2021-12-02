@@ -47,7 +47,7 @@ def ATL14_browse_plots(args):
      
     filein = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_100m_' + args.Release + '_' + args.version + '.nc'
     print('Making browse figures from ',filein)
-    pngfile = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version + '_BRW'
+    pngfile = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_100m_' + args.Release + '_' + args.version + '_BRW'
 
     ds = Dataset(filein)
     x = ds['x']
@@ -96,7 +96,7 @@ def ATL14_browse_plots(args):
     fig.savefig(f'{pngfile}_default2.png')
 
     # write images to browse .h5 file
-    brwfile = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version + '_BRW.h5'
+    brwfile = args.base_dir.rstrip('/') + '/ATL14_' + args.region + '_' + args.cycles + '_100m_' + args.Release + '_' + args.version + '_BRW.h5'
     print('making file', brwfile)
     if os.path.isfile(brwfile):
         os.remove(brwfile)
