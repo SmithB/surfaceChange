@@ -46,100 +46,99 @@ def ATL15_browse_plots(args):
         fhlog = open(log_file,'a')
      
     # list of spatial averaging ATL15 files
-#    avgs = ['_01km','_10km','_20km','_40km']
-#    for ii, ave in enumerate(avgs):
-    ave = '_01km'
-    filein = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '.nc'
-    print('Making browse figures from ',filein)
-    pngfile = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '_BRW'
-
-    ds = Dataset(filein)
-#    # find group of largest lag 
-#    lag=1
-#    for grp in ds.groups:
-#        if grp.startswith('dhdt_lag'):
-#            if int(grp[8:])>lag:
-#                lag=int(grp[8:])
-#    grp = 'dhdt_lag'+str(lag)
+    avgs = ['_01km','_10km','_20km','_40km']
+    for ii, ave in enumerate(avgs):
+        filein = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '.nc'
+        print('Making browse figures from ',filein)
+        pngfile = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '_BRW'
     
-    x = ds.groups['dhdt_lag1']['x']
-    y = ds.groups['dhdt_lag1']['y']
-    extent=[np.min(x),np.max(x),np.min(y),np.max(y)]
-    
-    dhdt = ds.groups['dhdt_lag1']['dhdt'] 
-    dhdt[:][dhdt[:]==ds.groups['dhdt_lag1']['dhdt']._FillValue] = np.nan  
-    dhdtmn = np.nanmean(dhdt,axis=0)
-    dhdtstd = np.nanstd(dhdt,axis=0)
-
-    if np.any(dhdtmn.ravel()):
-        # get limits for colorbar
-        h05mn = stats.mstats.scoreatpercentile(dhdtmn[~np.isnan(dhdtmn)].ravel(),5)    # dhdt is a masked array what?
-        h95mn = stats.mstats.scoreatpercentile(dhdtmn[~np.isnan(dhdtmn)].ravel(),95)
-        h05std = stats.mstats.scoreatpercentile(dhdtstd[~np.isnan(dhdtstd)].ravel(),5)    # dhdt is a masked array what?
-        h95std = stats.mstats.scoreatpercentile(dhdtstd[~np.isnan(dhdtstd)].ravel(),95)
-    else:
-        fhlog.write('{}: No valid dhdt data, no browse plot written.\n'.format(filein))
-        exit(-1)
-
-    fig,ax = plt.subplots(1,1)
-    ax = plt.subplot(1,1,1,projection=projection)
-    ax.add_feature(cfeature.LAND,facecolor='0.8')
-    ax.coastlines(resolution='50m',linewidth=0.5)
-    ax.gridlines(crs=ccrs.PlateCarree())
-    h = ax.imshow(dhdtmn, extent=extent, cmap='Spectral', vmin=h05mn, vmax=h95mn, origin='lower', interpolation='nearest')
-    fig.colorbar(h,ax=ax,label='dh/dt, m',shrink=1/2, extend='both')
-    ax.set_title(f'Mean quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
-    if args.Hemisphere==1:
-        plt.figtext(0.1,0.01,f'Figure 1. Average quarterly rate of height change (dhdt_lag1/dhdt) at 1km-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 45W and a standard latitude of 70N.',wrap=True)
-    elif args.Hemisphere==-1:
-        plt.figtext(0.1,0.01,f'Figure 1. Average quarterly rate of height change (dhdt_lag1/dhdt) at 1km-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 0W and a standard latitude of 71S.',wrap=True)
-    fig.savefig(f'{pngfile}_default1.png')
-    
-    fig,ax = plt.subplots(1,1)
-    ax = plt.subplot(1,1,1,projection=projection)
-    ax.add_feature(cfeature.LAND,facecolor='0.8')
-    ax.coastlines(resolution='50m',linewidth=0.5)
-    ax.gridlines(crs=ccrs.PlateCarree())
-    h = ax.imshow(dhdtstd, extent=extent, cmap='viridis', vmin=h05std, vmax=h95std, origin='lower',interpolation='nearest')
-    fig.colorbar(h,ax=ax,label='dh/dt standard deviation, m',shrink=1/2, extend='both')
-    ax.set_title(f'Standard deviation of quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
-    if args.Hemisphere==1:
-        plt.figtext(0.1,0.01,f'Figure 2. Standard deviation of quarterly rate of height change (dhdt_lag1/dhdt) at 1km-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 45W and a standard latitude of 70N.',wrap=True)
-    elif args.Hemisphere==-1:
-        plt.figtext(0.1,0.01,f'Figure 2. Standard deviation of quarterly rate of height change (dhdt_lag1/dhdt) at 1km-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 0W and a standard latitude of 71S.',wrap=True)
-    fig.savefig(f'{pngfile}_default2.png')
-    
-#    print(glob.glob(f'{args.base_dir.rstrip("/")}/ATL15_{args.region}_{args.cycles}{ave}_{args.Release}_{args.version}_BRW_default*.png'))
-
-    # write images to browse .h5 file
-    brwfile = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + '_' + args.Release + '_' + args.version + '_BRW.h5'
-    print(f'Making file {brwfile}') 
-    if os.path.isfile(brwfile):
-        os.remove(brwfile)
-    shutil.copyfile('surfaceChange/resources/BRW_template.h5',brwfile)
-    with h5py.File(brwfile,'r+') as hf:   
-        hf.require_group('/default')
-        for ii, name in enumerate(sorted(glob.glob(f'{args.base_dir.rstrip("/")}/ATL15_{args.region}_{args.cycles}{ave}_{args.Release}_{args.version}_BRW_default*.png'))):
-            img = imageio.imread(name, pilmode='RGB')
-            #print(ii,name)
-            
-#            ave = os.path.basename(name).split('_')[3]
-            dset = hf.create_dataset(f'default/default_{ii+1}', \
-                                     img.shape, data=img.data, \
-                                     chunks=img.shape, \
-                                     compression='gzip',compression_opts=6)
-            dset.attrs['CLASS'] = np.string_('IMAGE')
-            dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
-            dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_TRUECOLOR')
-            dset.attrs['INTERLACE_MODE'] = np.string_('INTERLACE_PIXEL')
+        ds = Dataset(filein)
+    #    # find group of largest lag 
+    #    lag=1
+    #    for grp in ds.groups:
+    #        if grp.startswith('dhdt_lag'):
+    #            if int(grp[8:])>lag:
+    #                lag=int(grp[8:])
+    #    grp = 'dhdt_lag'+str(lag)
         
-#    plt.show(block=False)
-#    plt.pause(0.001)
-#    input('Press enter to end.')
-#    plt.close('all')
-#    exit(-1)
-
-    fhlog.close()
+        x = ds.groups['dhdt_lag1']['x']
+        y = ds.groups['dhdt_lag1']['y']
+        extent=[np.min(x),np.max(x),np.min(y),np.max(y)]
+        
+        dhdt = ds.groups['dhdt_lag1']['dhdt'] 
+        dhdt[:][dhdt[:]==ds.groups['dhdt_lag1']['dhdt']._FillValue] = np.nan  
+        dhdtmn = np.nanmean(dhdt,axis=0)
+        dhdtstd = np.nanstd(dhdt,axis=0)
+    
+        if np.any(dhdtmn.ravel()):
+            # get limits for colorbar
+            h05mn = stats.mstats.scoreatpercentile(dhdtmn[~np.isnan(dhdtmn)].ravel(),5)    # dhdt is a masked array what?
+            h95mn = stats.mstats.scoreatpercentile(dhdtmn[~np.isnan(dhdtmn)].ravel(),95)
+            h05std = stats.mstats.scoreatpercentile(dhdtstd[~np.isnan(dhdtstd)].ravel(),5)    # dhdt is a masked array what?
+            h95std = stats.mstats.scoreatpercentile(dhdtstd[~np.isnan(dhdtstd)].ravel(),95)
+        else:
+            fhlog.write('{}: No valid dhdt data, no browse plot written.\n'.format(filein))
+            exit(-1)
+    
+        fig,ax = plt.subplots(1,1)
+        ax = plt.subplot(1,1,1,projection=projection)
+        ax.add_feature(cfeature.LAND,facecolor='0.8')
+        ax.coastlines(resolution='50m',linewidth=0.5)
+        ax.gridlines(crs=ccrs.PlateCarree())
+        h = ax.imshow(dhdtmn, extent=extent, cmap='Spectral', vmin=h05mn, vmax=h95mn, origin='lower', interpolation='nearest')
+        fig.colorbar(h,ax=ax,label='dh/dt, m',shrink=1/2, extend='both')
+        ax.set_title(f'Mean quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
+        if args.Hemisphere==1:
+            plt.figtext(0.1,0.01,f'Figure 1. Average quarterly rate of height change (dhdt_lag1/dhdt) at {ave[1:]}-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 45W and a standard latitude of 70N.',wrap=True)
+        elif args.Hemisphere==-1:
+            plt.figtext(0.1,0.01,f'Figure 1. Average quarterly rate of height change (dhdt_lag1/dhdt) at {ave[1:]}-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 0W and a standard latitude of 71S.',wrap=True)
+        fig.savefig(f'{pngfile}_default1.png')
+        
+        fig,ax = plt.subplots(1,1)
+        ax = plt.subplot(1,1,1,projection=projection)
+        ax.add_feature(cfeature.LAND,facecolor='0.8')
+        ax.coastlines(resolution='50m',linewidth=0.5)
+        ax.gridlines(crs=ccrs.PlateCarree())
+        h = ax.imshow(dhdtstd, extent=extent, cmap='viridis', vmin=h05std, vmax=h95std, origin='lower',interpolation='nearest')
+        fig.colorbar(h,ax=ax,label='dh/dt standard deviation, m',shrink=1/2, extend='both')
+        ax.set_title(f'Standard deviation of quarterly dh/dt: {os.path.basename(filein)}',wrap=True)
+        if args.Hemisphere==1:
+            plt.figtext(0.1,0.01,f'Figure 2. Standard deviation of quarterly rate of height change (dhdt_lag1/dhdt) at {ave[1:]}-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 45W and a standard latitude of 70N.',wrap=True)
+        elif args.Hemisphere==-1:
+            plt.figtext(0.1,0.01,f'Figure 2. Standard deviation of quarterly rate of height change (dhdt_lag1/dhdt) at {ave[1:]}-resolution, in meters, from cycle {args.cycles[0:2]} to cycle {args.cycles[2:4]}. Map is plotted in a polar-stereographic projection with a central longitude of 0W and a standard latitude of 71S.',wrap=True)
+        fig.savefig(f'{pngfile}_default2.png')
+        
+    #    print(glob.glob(f'{args.base_dir.rstrip("/")}/ATL15_{args.region}_{args.cycles}{ave}_{args.Release}_{args.version}_BRW_default*.png'))
+    
+        # write images to browse .h5 file
+        brwfile = args.base_dir.rstrip('/') + '/ATL15_' + args.region + '_' + args.cycles + ave + '_' + args.Release + '_' + args.version + '_BRW.h5'
+        print(f'Making file {brwfile}') 
+        if os.path.isfile(brwfile):
+            os.remove(brwfile)
+        shutil.copyfile('surfaceChange/resources/BRW_template.h5',brwfile)
+        with h5py.File(brwfile,'r+') as hf:   
+            hf.require_group('/default')
+            for ii, name in enumerate(sorted(glob.glob(f'{args.base_dir.rstrip("/")}/ATL15_{args.region}_{args.cycles}{ave}_{args.Release}_{args.version}_BRW_default*.png'))):
+                img = imageio.imread(name, pilmode='RGB')
+                #print(ii,name)
+                
+    #            ave = os.path.basename(name).split('_')[3]
+                dset = hf.create_dataset(f'default/default_{ii+1}', \
+                                         img.shape, data=img.data, \
+                                         chunks=img.shape, \
+                                         compression='gzip',compression_opts=6)
+                dset.attrs['CLASS'] = np.string_('IMAGE')
+                dset.attrs['IMAGE_VERSION'] = np.string_('1.2')
+                dset.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_TRUECOLOR')
+                dset.attrs['INTERLACE_MODE'] = np.string_('INTERLACE_PIXEL')
+            
+    #    plt.show(block=False)
+    #    plt.pause(0.001)
+    #    input('Press enter to end.')
+    #    plt.close('all')
+    #    exit(-1)
+    
+        fhlog.close()
     
 #    plt.show()
 #
