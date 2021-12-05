@@ -123,7 +123,7 @@ def ATL15_browse_plots(args):
                 #print(ii,name)
                 
     #            ave = os.path.basename(name).split('_')[3]
-                dset = hf.create_dataset(f'default/default_{ii+1}', \
+                dset = hf.create_dataset(f'default/default{ii+1}', \
                                          img.shape, data=img.data, \
                                          chunks=img.shape, \
                                          compression='gzip',compression_opts=6)
