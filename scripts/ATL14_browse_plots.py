@@ -103,7 +103,7 @@ def ATL14_browse_plots(args):
     shutil.copyfile('surfaceChange/resources/BRW_template.h5',brwfile)
     with h5py.File(brwfile,'r+') as hf:  
         hf.require_group('/default')
-        for ii, name in enumerate(sorted(glob.glob(f'{args.base_dir.rstrip("/")}/ATL14_{args.region}_{args.cycles}_{args.Release}_{args.version}_BRW_default*.png'))):
+        for ii, name in enumerate(sorted(glob.glob(f'{args.base_dir.rstrip("/")}/ATL14_{args.region}_{args.cycles}_100m_{args.Release}_{args.version}_BRW_default*.png'))):
             img = imageio.imread(name, pilmode='RGB')
             dset = hf.create_dataset('default/default'+str(ii+1), \
                                      img.shape, data=img.data, \
